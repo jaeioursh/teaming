@@ -12,7 +12,7 @@ class POI:
         self.x=x
         self.y=y
         self.poi_type=poi_type
-        self.strong_coupling=strong_coupling
+        self.strong_coupling=strong_coupling #1: simultaneous obvservation, 0: observations within window of time
         self.viewed=[]      #list of currently observing agents
         self.viewing=[]     #list of all agents that viewed in refresh window
         self.history=[]
@@ -47,7 +47,7 @@ class Agent:
         self._x=x
         self._y=y
 
-        self.poi=None
+        self.poi=None  #variable to store desired POI
         self.capabilities=np.random.random(N_pois)
 
     def reset(self):
@@ -55,7 +55,7 @@ class Agent:
         self.y=self._y
         self.poi=None
         
-
+    #moves agent 1-unit towards the POI
     def move(self):
         if self.poi is not None:
             X=self.poi.x
@@ -68,6 +68,8 @@ class Agent:
                 self.y+=1
             elif Y<self.y:
                 self.y-=1
+    
+    #boolean to check if agent is successful in observing desired POI
     def observe(self):
         if abs(self.poi.x-self.x)<self.poi.couple and abs(self.poi.y-self.y)<self.poi.couple:
             return 1
@@ -86,10 +88,12 @@ class DiscreteRoverDomain:
         self.pois=self.gen_pois()
         self.reset()
 
+    #generate list of agents
     def gen_agents(self):
         self.starting_locs=np.random.randint(0,4,(2,self.N_agents))+self.size//2
         return [Agent(x,y,self.N_pois) for x,y in self.starting_locs]
 
+    #generate list of POIs
     def gen_pois(self):
         x=np.random.randint(0,self.size,(self.N_pois))
         y=np.random.randint(0,self.size,(self.N_pois))
@@ -99,12 +103,14 @@ class DiscreteRoverDomain:
         value=poi_type
         return list(map(POI,x,y,value,refresh_rate,couple,poi_type))
 
+    #reset environment to intial config
     def reset(self):
         for a in self.agents:
             a.reset()
         for p in self.pois:
             p.reset()
 
+    #perform one state transition given a list of actions for each agent
     def step(self,actions):
         for i in range(self.N_pois):
             self.pois[i].refresh()
@@ -119,9 +125,11 @@ class DiscreteRoverDomain:
                 if self.agents[i] not in poi.viewed:
                     poi.viewed.append(self.agents[i])
             
+    #TODO
     def state(self):
         pass
     
+    #returns global reward
     def G(self):
         g=0
         for poi in self.pois:
