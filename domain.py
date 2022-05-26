@@ -108,7 +108,7 @@ class DiscreteRoverDomain:
         """
         # creates an array of x, y positions for each agent
         # locations are [0,4] plus half the size of the world
-        self.starting_locs = np.random.randint(0, 4, (2, self.N_agents)) + self.size // 2
+        self.starting_locs = np.random.randint(0, 4, (self.N_agents, 2)) + self.size // 2
         # return an array of Agent objects at the specified locations
         return [Agent(x, y, self.N_pois) for x, y in self.starting_locs]
 
