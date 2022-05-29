@@ -2,9 +2,10 @@ import numpy as np
 
 
 class POI:
-    def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type, strong_coupling=True):
+    def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type,n_agents, strong_coupling=True):
         self.value = value                  # POI value -- this only makes sense for some reward structures
         self.successes = 0                  # number of times it has successfully been captured
+        self.D_vec=np.zeros(n_agents)
         self.refresh_idx = 0                # time steps since last refresh
         self.refresh_rate = refresh_rate    # how often it is refreshed
         self.obs_required = obs_required    # number of observations required to fully observe the POI
@@ -16,7 +17,7 @@ class POI:
         self.strong_coupling = strong_coupling  # 1: simultaneous obvservation,  0: observations within window of time
         self.viewed = []                    # list of all agents that viewed in refresh window
         self.viewing = []                   # list of currently observing agents
-        self.history = []                   # history of agents that have viewed this POI
+
 
     def reset(self):
         """
@@ -25,6 +26,7 @@ class POI:
         """
         self.refresh_idx = 0
         self.successes = 0
+        self.D_vec[:]=0
         self.viewed = []
         self.viewing = []
 
@@ -33,20 +35,36 @@ class POI:
         if self.refresh_idx == self.refresh_rate:           # if it has hit the refresh
             self.refresh_idx = 0                            # reset the time steps
             if self.strong_coupling:                        # if it requires simultaneous observation
-                if len(self.viewing) >= self.couple:        # if the number of simultaneous observations meets the coupling requirement
+                if len(self.viewing) >= self.couple:        # if the number of simultaneous observations eets the coupling requirement
                     capabilities = [agent.capabilities[self.poi_type] for agent in self.viewing]    # check to make sure the agents are capable of observing this POI
-                    self.successes += min(capabilities)     # Add minimum capability of agents to success of observation
-                    self.history.append(self.viewing)       # History of agents that simultaneously viewed the POI
+                    capabilities=sorted(capabilities)
+                    g=capabilities[0]     # Add minimum capability of agents to success of observation
+                    self.successes += g
+                    #difference reward block
+                    idxs=[agent.idx for agent in self.viewing]
+                    d=[]
+                    for agent in self.viewing:
+                        if len(self.viewing)>=self.couple+1:
+                            if agent.capabilities[self.poi_type]==g:
+                                d.append(g-capabilities[1])
+                            else:
+                                d.append(0)
+                        else:
+                            d.append(g)               
+                    self.D_vec[idxs]+=np.array(d)
+                    
             else:
                 if len(self.viewed) >= self.couple:         # if weak coupling, check all the agents that viewed this refresh cycle
                     capabilities = [agent.capabilities[self.poi_type] for agent in self.viewed]
-                    self.successes += min(capabilities)
-                    self.history.append(self.viewed)
+                    g=min(capabilities)
+                    self.successes += g
+
             self.viewed = []                                # reset the agents that have viewed
 
 
 class Agent:
-    def __init__(self, x, y, N_pois):
+    def __init__(self, x, y, N_pois,idx):
+        self.idx=idx
         self.x = x                  # location - x
         self.y = y                  # location - y
         self._x = x                 # initial location - x
@@ -108,9 +126,11 @@ class DiscreteRoverDomain:
         """
         # creates an array of x, y positions for each agent
         # locations are [0,4] plus half the size of the world
-        self.starting_locs = np.random.randint(0, 4, (self.N_agents, 2)) + self.size // 2
+        X = np.random.randint(0, 4, self.N_agents) + self.size // 2
+        Y = np.random.randint(0, 4, self.N_agents) + self.size // 2
+        idxs=[i for i in range(self.N_agents)]
         # return an array of Agent objects at the specified locations
-        return [Agent(x, y, self.N_pois) for x, y in self.starting_locs]
+        return [Agent(x, y, self.N_pois,i) for x, y, i in zip(X,Y,idxs)]
 
     # generate list of POIs
     def gen_pois(self):
@@ -126,8 +146,9 @@ class DiscreteRoverDomain:
         couple = [2 for i in range(self.N_pois)]                # coupling requirement for all POIs
         poi_type = [i for i in range(self.N_pois)]              # Each one is a different type
         value = poi_type                                        # Value of the POI
+        n_agents=[self.N_agents]*self.N_pois
         # return a list of the POI objects
-        return list(map(POI, x, y, value, refresh_rate, obs_required, couple, poi_type))
+        return list(map(POI, x, y, value, refresh_rate, obs_required, couple, poi_type,n_agents))
 
     # reset environment to intial config
     def reset(self):
@@ -173,11 +194,16 @@ class DiscreteRoverDomain:
             g += poi.successes * poi.value
         return g
 
+    def D(self):
+        d=np.zeros(self.N_agents)
+        for poi in self.pois:
+            d = d +  poi.D_vec * poi.value
+        return d
 
 if __name__ == "__main__":
     np.random.seed(0)
-    env = DiscreteRoverDomain(2, 6)
+    env = DiscreteRoverDomain(3, 6)
     for i in range(100):
-        actions = [3, 3]
+        actions = [3, 3, 3]
         env.step(actions)
-        print(i, env.G())
+        print(i, env.G(),env.D())
