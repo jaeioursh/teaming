@@ -1,5 +1,5 @@
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 class POI:
     def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type,n_agents, strong_coupling=True):
@@ -117,7 +117,24 @@ class DiscreteRoverDomain:
         self.agents = self.gen_agents()     # generate agents
         self.pois = self.gen_pois()         # generate POIs
         self.reset()                        # reset the system
+        self.vis=0
 
+    def draw(self):
+        if self.vis==0:
+            self.vis=1
+            plt.ion()
+            self.agent_offset=np.random.normal(0,0.5,(self.N_agents,2))
+        plt.clf()
+        xy=np.array([[poi.x,poi.y] for poi in self.pois])
+        XY=np.array([[agent.x,agent.y] for agent in self.agents])+self.agent_offset
+        alpha=[1-poi.refresh_idx/poi.refresh_rate for poi in self.pois]
+        sizes=[poi.value*20+10 for poi in self.pois]
+        print(alpha)
+        plt.scatter(xy[:,0],xy[:,1],marker="s",s=sizes,c=alpha,vmin=0,vmax=1)
+        plt.scatter(XY[:,0],XY[:,1],marker="o")
+        plt.ylim([0,self.size])
+        plt.xlim([0,self.size])
+        plt.pause(0.1)
     # generate list of agents
     def gen_agents(self):
         """
@@ -204,6 +221,7 @@ if __name__ == "__main__":
     np.random.seed(0)
     env = DiscreteRoverDomain(3, 6)
     for i in range(100):
-        actions = [3, 3, 3]
+        actions = [3, 3, 0]
         env.step(actions)
+        env.draw()
         print(i, env.G(),env.D())
