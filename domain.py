@@ -129,12 +129,13 @@ class DiscreteRoverDomain:
         XY=np.array([[agent.x,agent.y] for agent in self.agents])+self.agent_offset
         alpha=[1-poi.refresh_idx/poi.refresh_rate for poi in self.pois]
         sizes=[poi.value*20+10 for poi in self.pois]
-        print(alpha)
+        
         plt.scatter(xy[:,0],xy[:,1],marker="s",s=sizes,c=alpha,vmin=0,vmax=1)
         plt.scatter(XY[:,0],XY[:,1],marker="o")
         plt.ylim([0,self.size])
         plt.xlim([0,self.size])
         plt.pause(0.1)
+
     # generate list of agents
     def gen_agents(self):
         """
@@ -185,11 +186,7 @@ class DiscreteRoverDomain:
         :param actions:
         :return:
         """
-        # refresh all POIs and reset which agents are currently viewing
-        for i in range(self.N_pois):
-            self.pois[i].refresh()
-            self.pois[i].viewing = []                   # if this gets reset at every step, the "viewing" check will only see the last time step
-
+        
         # update all agents
         for i in range(self.N_agents):
             self.agents[i].poi = self.pois[actions[i]]  # agents set a new goal at every time step
@@ -200,10 +197,21 @@ class DiscreteRoverDomain:
                 if self.agents[i] not in poi.viewed:    # this logic assumes each POI needs to be visited by different agents
                     poi.viewed.append(self.agents[i])
 
-    # TODO
-    def state(self):
-        pass
+        # refresh all POIs and reset which agents are currently viewing
+        for i in range(self.N_pois):
+            self.pois[i].refresh()
+            self.pois[i].viewing = []                   # if this gets reset at every step, the "viewing" check will only see the last time step
 
+    
+    def state(self):
+        s_poi=[float(not poi.refresh_idx) for poi in self.pois]
+        S=[]
+        for agent in self.agents:
+            s=[]
+            for poi in self.pois:
+                s.append(( abs(agent.x-poi.x)+abs(agent.y-poi.y) ) / self.size )
+            S.append(s_poi+s)
+        return np.array(S)
     # returns global reward based on POI values
     def G(self):
         g = 0
@@ -220,8 +228,11 @@ class DiscreteRoverDomain:
 if __name__ == "__main__":
     np.random.seed(0)
     env = DiscreteRoverDomain(3, 6)
-    for i in range(100):
-        actions = [3, 3, 0]
+    for i in range(30):
+        actions = [3, 3, 3]
         env.step(actions)
+        
         env.draw()
         print(i, env.G(),env.D())
+    print(env.state())
+ 
