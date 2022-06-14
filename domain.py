@@ -1,93 +1,9 @@
 import numpy as np
-
-
-class POI:
-    def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type, poi_idx, strong_coupling=False):
-        self.x = x                          # location - x
-        self.y = y                          # location - y
-        self.value = value                  # POI value -- this only makes sense for some reward structures
-        self.refresh_rate = refresh_rate    # how often it is refreshed
-        self.refresh_idx = 0                # time steps since last refresh
-        self.obs_required = obs_required    # number of observations required to fully observe the POI
-        self.obs_radius = 2                 # observation radius
-        self.couple = couple                # coupling requirement
-        self.poi_type = poi_type            # type
-        self.poi_idx = poi_idx              # ID for each POI
-        self.successes = 0                  # number of times it has successfully been captured
-        self.strong_coupling = strong_coupling  # 1: simultaneous obvservation,  0: observations within window of time
-        self.viewed = []                    # list of all agents that viewed in refresh window
-        self.viewing = []                   # list of currently observing agents
-        self.history = []                   # history of agents that have viewed this POI
-
-    def reset(self):
-        """
-        Reset refresh, successes, viewed, and viewing
-        :return:
-        """
-        self.refresh_idx = 0
-        self.successes = 0
-        self.viewed = []
-        self.viewing = []
-
-    def refresh(self):
-        self.refresh_idx += 1                               # increase number of time steps since last refresh
-        if self.refresh_idx == self.refresh_rate:           # if it has hit the refresh
-            self.refresh_idx = 0                            # reset the time steps
-            if self.strong_coupling:                        # if it requires simultaneous observation
-                if len(self.viewing) >= self.couple:        # if the number of simultaneous observations meets the coupling requirement
-                    capabilities = [agent.capabilities[self.poi_type] for agent in self.viewing]    # check to make sure the agents are capable of observing this POI
-                    self.successes += min(capabilities)     # Add minimum capability of agents to success of observation
-                    self.history.append(self.viewing)       # History of agents that simultaneously viewed the POI
-            else:
-                if len(self.viewed) >= self.obs_required:   # if weak coupling, check all the agents that viewed this refresh cycle
-                    capabilities = [agent.capabilities[self.poi_type] for agent in self.viewed]
-                    self.successes += min(capabilities)
-                    self.history.append(self.viewed)
-            self.viewed = []                                # reset the agents that have viewed
-
-
-class Agent:
-    def __init__(self, x, y, N_pois):
-        self.x = x                  # location - x
-        self.y = y                  # location - y
-        self._x = x                 # initial location - x
-        self._y = y                 # initial location - y
-        self.poi = None             # variable to store desired POI
-        self.capabilities = np.ones(N_pois)    # randomly initialize agent's capability of viewing each POI
-
-    def reset(self):
-        self.x = self._x            # magically teleport to initial location
-        self.y = self._y            # magically teleport to initial location
-        self.poi = None             # reset to no desired POI
-
-    # moves agent 1-unit towards the POI
-    def move(self):
-        """
-        If the agent has a desired POI, move one unit toward POI
-        :return:
-        """
-        if self.poi is not None:
-            X = self.poi.x
-            Y = self.poi.y
-            if X > self.x:
-                self.x += 1
-            elif X < self.x:
-                self.x -= 1
-            elif Y > self.y:
-                self.y += 1
-            elif Y < self.y:
-                self.y -= 1
-
-    # boolean to check if agent is successful in observing desired POI
-    def observe(self):
-        """
-        If agent is within the observation radius, it is successful in observing
-        :return:
-        """
-        if abs(self.poi.x - self.x) < self.poi.couple and abs(self.poi.y - self.y) < self.poi.couple:
-            return 1
-        else:
-            return 0
+from teaming.visuals_test import VisualizeDomain as Visualize
+from teaming.POI import POI
+from teaming.agent import Agent
+from qlearner.qlearner.qlearner import QLearner
+from time import time
 
 
 class DiscreteRoverDomain:
@@ -95,11 +11,12 @@ class DiscreteRoverDomain:
         self.N_agents = N_agents            # number of agents
         self.N_pois = N_pois                # number of POIs
         self.poi_options = np.array(poi_options)      # options for each POI - [refresh rate, number of observations required, ID]
-
+        self.num_poi_options = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
         self.size = 30                      # size of the world
-
+        self.time_steps = 100               # time steps per epoch
         self.agents = self.gen_agents()     # generate agents
         self.pois = self.gen_pois()         # generate POIs
+        self.viz = Visualize(self.size, self.pois, self.agents)
         self.reset()                        # reset the system
 
     # generate list of agents
@@ -148,6 +65,8 @@ class DiscreteRoverDomain:
         """
         for a in self.agents:       # reset all agents to initial config
             a.reset()
+            a.curr_l = np.zeros(self.num_poi_options)
+            a.tot_l = np.zeros(self.num_poi_options)
         for p in self.pois:         # reset all POIs to initial config
             p.reset()
 
@@ -160,22 +79,45 @@ class DiscreteRoverDomain:
         """
         # update all agents
         for i in range(self.N_agents):
-            if not self.agents[i].poi:
-                self.agents[i].poi = self.pois[actions[i]]  # agents set a new goal at every time step
-            self.agents[i].move()                       # move agent toward POI
-            if self.agents[i].observe():                # If at the POI and observed
-                poi = self.agents[i].poi                # get the POI ID
-                poi.viewing.append(self.agents[i])      # add the agent to current agents viewing the POI
-                poi.viewed.append(self.agents[i])
-                self.agents[i].poi = None
-        # refresh all POIs and reset which agents are currently viewing
-        for i in range(self.N_pois):
-            self.pois[i].refresh()
-            self.pois[i].viewing = []                   # if this gets reset at every step, the "viewing" check will only see the last time step
+            # if i == 0:
+            #     print(self.state(self.agents[i]))
+            if actions[i] >= self.N_pois:
+                # The policy has chosen the "null" action
+                continue
+            self.agents[i].step(self.pois[actions[i]])
 
-    # TODO
-    def state(self):
-        pass
+        # refresh all POIs and reset which agents are currently viewing
+        for j in range(self.N_pois):
+            self.pois[j].refresh()
+        for k in range(self.N_agents):
+            self.L(self.agents[k])
+        # self.viz.show_grid()
+
+    def state(self, agent):
+        ax, ay = agent.x, agent.y
+        distance = np.zeros(self.N_pois)
+        for poi in self.pois:
+            px, py = poi.x, poi.y
+            d = abs(ax - px) + abs(ay - py)     # find the square distance between the agent and each POI
+            distance[poi.poi_idx] = d
+            # if d < 10:
+            #     distance[poi.poi_idx] = 0
+            # else:
+            #     distance[poi.poi_idx] = 1
+        # last_visit = np.zeros_like(agent.last_visit)
+        # for i in range(len(last_visit)):
+        #     if agent.last_visit[i] < 10:
+        #         last_visit[i] = 0
+        #     else:
+        #         last_visit[i] = 1
+        state = np.concatenate((distance, agent.last_visit))
+        # stupid_state = ""
+        # for i in state:
+        #     stupid_state += str(int(i))
+        return state
+
+    def state_size(self):
+        return self.N_pois * 2
 
     # returns global reward based on POI values
     def G(self):
@@ -184,15 +126,75 @@ class DiscreteRoverDomain:
             g += poi.successes * poi.value
         return g
 
+    def L(self, agent):
+        rew_arr = np.zeros(self.num_poi_options)        # each POI type associates with a different L
+        for poi in self.pois:
+            if poi.history and poi.curr_rew:
+                if agent in poi.history[-1]:
+                    rew_arr[poi.poi_type] += 1
+        agent.curr_l = rew_arr
+        agent.tot_l += rew_arr
+        # print(agent.curr_l, agent.tot_l)
+
+    def run_sim(self, policies):
+        if len(policies) != self.N_agents:
+            raise ValueError('number of policies should equal number of agents in system (currently {})'.format(self.N_agents))
+
+        for i in range(len(policies)):
+            self.agents[i].policy = policies[i]
+
+        for _ in range(self.time_steps):
+            actions = []
+            for agent in self.agents:
+                st = self.state(agent)          # gets the state
+                act = agent.policy(st)          # picks an action based on the policy
+                act_detensorfied = np.argmax(act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
+                actions.append(act_detensorfied)             # save the action to list of actions
+            self.step(actions)
+
+        return self.G()
+
 
 if __name__ == "__main__":
-    np.random.seed(0)
+    start = time()
+    np.random.seed(1)
     # POI types should be of the form [refresh rate, number of observations required, unique ID]
-    poi_types = [[1, 1, 0], [10, 3, 1], [50, 5, 2]]
-    env = DiscreteRoverDomain(3, 3, poi_types)
+    poi_types = [[100, 1, 0]]  #, [10, 3, 1], [50, 5, 2]]
+    num_agents = 2
+    num_pois = 30
+    num_states = 2**(num_pois*2)
 
-    for i in range(1000):
-        actions = np.ndarray.tolist(np.random.randint(3, size=3))
-        # actions = [1, 3, 4]
-        env.step(actions)
-        print(i, env.G())
+    for blerg in range(1000):
+        env = DiscreteRoverDomain(num_agents, num_pois, poi_types)
+        env.reset()
+        # q_learners = []
+        # for _ in range(num_agents):
+        #     q_learners.append(QLearner(num_states, num_pois))
+        #
+        #
+        # state = np.zeros(num_agents).astype(int)
+        # prev_state = np.zeros(num_agents).astype(int)
+        # for i in range(num_agents):
+        #     st = env.state(env.agents[i])
+        #     state[i] = st
+
+        for l in range(100):
+            # print("################# {} ###############".format(l))
+            # actions = []
+            actions = np.ndarray.tolist(np.random.randint(3, size=num_agents))
+            # for i in range(num_agents):
+            #     act = q_learners[i].selectAction(state[i])
+            #     actions.append(act)
+
+            env.step(actions)
+            # prev_state = state
+
+            # for i in range(num_agents):
+            #     st = env.state(env.agents[i])
+            #     state[i] = st
+            #     L = env.agents[i].curr_l
+            #     q_learners[i].updateQValue(prev_state[i], actions[i], state[i], sum(L))
+
+        print(blerg, env.G())
+
+    print(time() - start)
