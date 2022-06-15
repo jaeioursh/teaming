@@ -8,8 +8,6 @@ class Agent:
         self._x = x                 # initial location - x
         self._y = y                 # initial location - y
         self.poi = None             # variable to store desired POI
-        self.curr_l = None          # array of local rewards
-        self.tot_l = None           # array of L summed over time
         self.last_visit = np.zeros(N_pois)      # array to keep track of the last time this agent visited each POI
         self.capabilities = np.ones(N_pois)     # randomly initialize agent's capability of viewing each POI
         self.policy = None

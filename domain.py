@@ -16,7 +16,6 @@ class DiscreteRoverDomain:
         self.time_steps = 100               # time steps per epoch
         self.agents = self.gen_agents()     # generate agents
         self.pois = self.gen_pois()         # generate POIs
-        self.viz = Visualize(self.size, self.pois, self.agents)
         self.reset()                        # reset the system
 
     # generate list of agents
@@ -65,8 +64,6 @@ class DiscreteRoverDomain:
         """
         for a in self.agents:       # reset all agents to initial config
             a.reset()
-            a.curr_l = np.zeros(self.num_poi_options)
-            a.tot_l = np.zeros(self.num_poi_options)
         for p in self.pois:         # reset all POIs to initial config
             p.reset()
 
@@ -79,8 +76,6 @@ class DiscreteRoverDomain:
         """
         # update all agents
         for i in range(self.N_agents):
-            # if i == 0:
-            #     print(self.state(self.agents[i]))
             if actions[i] >= self.N_pois:
                 # The policy has chosen the "null" action
                 continue
@@ -89,10 +84,8 @@ class DiscreteRoverDomain:
         # refresh all POIs and reset which agents are currently viewing
         for j in range(self.N_pois):
             self.pois[j].refresh()
-        for k in range(self.N_agents):
-            self.L(self.agents[k])
-        # self.viz.show_grid()
 
+    #TODO: Rewrite with current state space
     def state(self, agent):
         ax, ay = agent.x, agent.y
         distance = np.zeros(self.N_pois)
@@ -100,22 +93,10 @@ class DiscreteRoverDomain:
             px, py = poi.x, poi.y
             d = abs(ax - px) + abs(ay - py)     # find the square distance between the agent and each POI
             distance[poi.poi_idx] = d
-            # if d < 10:
-            #     distance[poi.poi_idx] = 0
-            # else:
-            #     distance[poi.poi_idx] = 1
-        # last_visit = np.zeros_like(agent.last_visit)
-        # for i in range(len(last_visit)):
-        #     if agent.last_visit[i] < 10:
-        #         last_visit[i] = 0
-        #     else:
-        #         last_visit[i] = 1
         state = np.concatenate((distance, agent.last_visit))
-        # stupid_state = ""
-        # for i in state:
-        #     stupid_state += str(int(i))
         return state
 
+    #TODO: Rewrite with current state space
     def state_size(self):
         return self.N_pois * 2
 
@@ -126,17 +107,18 @@ class DiscreteRoverDomain:
             g += poi.successes * poi.value
         return g
 
-    def L(self, agent):
-        rew_arr = np.zeros(self.num_poi_options)        # each POI type associates with a different L
-        for poi in self.pois:
-            if poi.history and poi.curr_rew:
-                if agent in poi.history[-1]:
-                    rew_arr[poi.poi_type] += 1
-        agent.curr_l = rew_arr
-        agent.tot_l += rew_arr
-        # print(agent.curr_l, agent.tot_l)
-
     def run_sim(self, policies):
+        """
+        This is set up to test a set of NN policies, one for each agent.
+        Parameters
+        ----------
+        policies: a policy (assumes a NN) for each agent
+
+        Returns
+        -------
+        G: global reward
+        """
+
         if len(policies) != self.N_agents:
             raise ValueError('number of policies should equal number of agents in system (currently {})'.format(self.N_agents))
 
@@ -149,6 +131,7 @@ class DiscreteRoverDomain:
                 st = self.state(agent)          # gets the state
                 act = agent.policy(st)          # picks an action based on the policy
                 act_detensorfied = np.argmax(act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
+                #TODO: add check to make sure action is valid
                 actions.append(act_detensorfied)             # save the action to list of actions
             self.step(actions)
 
@@ -156,7 +139,6 @@ class DiscreteRoverDomain:
 
 
 if __name__ == "__main__":
-    start = time()
     np.random.seed(1)
     # POI types should be of the form [refresh rate, number of observations required, unique ID]
     poi_types = [[100, 1, 0]]  #, [10, 3, 1], [50, 5, 2]]
@@ -164,37 +146,12 @@ if __name__ == "__main__":
     num_pois = 30
     num_states = 2**(num_pois*2)
 
-    for blerg in range(1000):
+    for _ in range(1000):
         env = DiscreteRoverDomain(num_agents, num_pois, poi_types)
         env.reset()
-        # q_learners = []
-        # for _ in range(num_agents):
-        #     q_learners.append(QLearner(num_states, num_pois))
-        #
-        #
-        # state = np.zeros(num_agents).astype(int)
-        # prev_state = np.zeros(num_agents).astype(int)
-        # for i in range(num_agents):
-        #     st = env.state(env.agents[i])
-        #     state[i] = st
 
-        for l in range(100):
-            # print("################# {} ###############".format(l))
-            # actions = []
+        for _ in range(100):
             actions = np.ndarray.tolist(np.random.randint(3, size=num_agents))
-            # for i in range(num_agents):
-            #     act = q_learners[i].selectAction(state[i])
-            #     actions.append(act)
-
             env.step(actions)
-            # prev_state = state
 
-            # for i in range(num_agents):
-            #     st = env.state(env.agents[i])
-            #     state[i] = st
-            #     L = env.agents[i].curr_l
-            #     q_learners[i].updateQValue(prev_state[i], actions[i], state[i], sum(L))
-
-        print(blerg, env.G())
-
-    print(time() - start)
+        print(env.G())

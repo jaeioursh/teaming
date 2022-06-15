@@ -13,7 +13,7 @@ class POI:
         self.poi_type = poi_type            # type
         self.poi_idx = poi_idx              # ID for each POI
         self.successes = 0                  # number of times it has successfully been captured
-        self.strong_coupling = strong_coupling  # 1: simultaneous obvservation,  0: observations within window of time
+        self.strong_coupling = strong_coupling  # 1: simultaneous observation,  0: observations within window of time
         self.viewed = []                    # list of all agents that viewed in refresh window
         self.viewing = []                   # list of currently observing agents
         self.history = []                   # history of agents that have viewed this POI
