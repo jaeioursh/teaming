@@ -1,9 +1,6 @@
 import numpy as np
-from teaming.visuals_test import VisualizeDomain as Visualize
 from teaming.POI import POI
 from teaming.agent import Agent
-from qlearner.qlearner.qlearner import QLearner
-from time import time
 
 
 class DiscreteRoverDomain:
