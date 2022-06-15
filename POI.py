@@ -9,7 +9,7 @@ class POI:
         self.refresh_idx = 0                # time steps since last refresh
         self.refresh_rate = refresh_rate    # how often it is refreshed
         self.obs_required = obs_required    # number of observations required to fully observe the POI
-        self.obs_radius = 2                 # observation radius
+        self.obs_radius = 1                 # observation radius
         self.couple = couple                # coupling requirement
         self.x = x                          # location - x
         self.y = y                          # location - y

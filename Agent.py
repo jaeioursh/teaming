@@ -24,14 +24,12 @@ class Agent:
         if self.poi is not None:
             X = self.poi.x
             Y = self.poi.y
-            if X > self.x:
-                self.x += 1
-            elif X < self.x:
-                self.x -= 1
-            elif Y > self.y:
-                self.y += 1
-            elif Y < self.y:
-                self.y -= 1
+            R = ((X-self.x)**2.0+(Y-self.y)**2.0)**0.5
+            if R>1:
+                self.y+=(Y-self.y)/R
+                self.x+=(X-self.x)/R
+            
+            
 
     # boolean to check if agent is successful in observing desired POI
     def observe(self):
@@ -39,7 +37,7 @@ class Agent:
         If agent is within the observation radius, it is successful in observing
         :return:
         """
-        if abs(self.poi.x - self.x) < self.poi.couple and abs(self.poi.y - self.y) < self.poi.couple:
+        if abs(self.poi.x - self.x) < self.poi.obs_radius and abs(self.poi.y - self.y) < self.poi.obs_radius:
             return 1
         else:
             return 0
