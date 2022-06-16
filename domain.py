@@ -20,6 +20,7 @@ class DiscreteRoverDomain:
         self.pois = self.gen_pois()                 # generate POIs
         self.n_bins = 8                             # number of bins (quadrants) for sensor discretization
         self.sensor_bins = np.linspace(pi, -pi, self.n_bins + 1, True)  # Discretization for sensor bins
+        self.sensor_range = 10
         self.reset()                                # reset the system
         self.vis = 0
 
@@ -117,79 +118,10 @@ class DiscreteRoverDomain:
             self.pois[i].refresh()
             self.pois[i].viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
-    # TODO: Rewrite with current state space design
-    def state(self):
-        s_poi = [float(not poi.refresh_idx) for poi in self.pois]
-        S = []
-        for agent in self.agents:
-            """
-            s=[]
-            for poi in self.pois:
-                s.append(( abs(agent.x-poi.x)+abs(agent.y-poi.y) ) / self.size )
-            """
-            s = [agent.x / self.size, agent.y / self.size]
-            S.append(s_poi + s)
-
-        return np.array(S)
-
-    def _get_quadrant_state_info(self, agent, a_or_p='p'):
-        """
-        Get 'quadrant' state information for all other points or agents
-        Parameters
-        ----------
-        agent:  agent for which we are getting state info
-        a_or_p: is the state info for all other agents or POIs
-
-        Returns
-        -------
-        distance and quadrant number for each point
-
-        """
-        # tested this and it should be accurate
-        if a_or_p == 'p':
-            num_points = self.N_pois
-            points = self.pois
-        else:
-            num_points = self.N_agents
-            points = self.agents
-        dist_arr = np.zeros(num_points)  # distance to each POI
-        theta_arr = np.zeros(num_points)  # angle to each poi [-pi, pi]
-        for i in range(num_points):
-            point = points[i]
-            x = point.x - agent.x
-            y = point.y - agent.y
-            dist_arr[i] = sqrt(x ** 2 + y ** 2)  # absolute distance to each POI
-            theta_arr[i] = atan2(y, x)  # angle to each POI
-        quadrants = np.digitize(theta_arr,
-                                bins=self.sensor_bins) - 1  # which quadrant / octant each POI is in relative to the GLOBAL frame
-        return dist_arr, quadrants
-
-    # TODO: Rewrite with current state space
-    def state_size(self):
-        return self.N_pois * 2
-
-    # returns global reward based on POI values
-    def G(self):
-        g = 0
-        for poi in self.pois:
-            g += poi.successes * poi.value
-        return g
-
-    def D(self):
-        d = np.zeros(self.N_agents)
-        for poi in self.pois:
-            d = d + poi.D_vec * poi.value
-        return d
-
-    def Dpp(self):
-        d = np.zeros(self.N_agents)
-        for poi in self.pois:
-            d = d + poi.Dpp_vec * poi.value
-        return d
-
     def run_sim(self, policies):
         """
-        This is set up to test a set of NN policies, one for each agent.
+        This is set up to run one epoch for the number of time steps specified in the class definition.
+        Tests a set of NN policies, one for each agent.
         Parameters
         ----------
         policies: a policy (assumes a NN) for each agent
@@ -219,6 +151,122 @@ class DiscreteRoverDomain:
 
         return self.G()
 
+    def state(self, agent):
+        """
+        Takes in an agent, returns the state and the relevant indices for the closest POI or agent in each region of each type
+        :param agent:
+        :return state, state_idx:
+        """
+        # initialize everything at -1 so it is easily distinguishable
+        # Number of sensor bins as rows, poi types plus agents for columns (hence +1)
+        state = np.zeros((self.n_bins, len(self.poi_options) + 1)) - 1
+        state_idx = np.zeros_like(state) - 1
+        poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
+        ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
+
+        # Determine closest POI in each region
+        for i in range(len(self.pois)):
+            d = poi_dist[i]
+            if not d:       # If the POI is out of range, skip it
+                continue    # False was used as the arbitrary flag to indicate this POI is out of sensor range
+            quad = poi_quads[i]
+            poi_type = self.pois[i].poi_type
+            # d is inverse distance, so this finds the closest one
+            if d > state[quad, poi_type]:
+                state[quad, poi_type] = d
+                state_idx[quad, poi_type] = i
+
+        # Determine closest agent in each region and sum inverse distances of all agents in each quadrant
+        curr_best = np.zeros(self.n_bins) - 1
+        for j in range(len(self.agents)):
+            if self.agents[j] == agent:   # If looking at the current agent, skip it
+                continue
+
+            d = ag_dist[j]
+            if not d:    # If the agent is out of sensor range, skip it
+                continue    # False was used as the arbitrary flag to indicate this agent is out of sensor range
+            quad = ag_quads[j]
+            ag_col = len(self.poi_options)  # last column in each row is dedicated to agents in region
+            state[quad, ag_col] += d   # Sum of distances to all agents
+            if state[quad, ag_col] > 1:     # bound to [0, 1]
+                state[quad, ag_col] = 1
+            # Keeps track of the closest agent in each region
+            if d > curr_best[quad]:
+                curr_best[quad] = d
+                state_idx[quad, ag_col] = j
+
+        return state, state_idx
+
+    def _get_quadrant_state_info(self, agent, a_or_p='p'):
+        """
+        Get 'quadrant' state information for all other points or agents
+        Parameters
+        ----------
+        agent:  agent for which we are getting state info
+        a_or_p: is the state info for all other agents or POIs
+
+        Returns
+        -------
+        distance and quadrant number for each point
+
+        """
+        # tested this and it should be accurate
+        # Info for POIs
+        if a_or_p == 'p':
+            num_points = self.N_pois
+            points = self.pois
+        # Info for other agents
+        else:
+            num_points = self.N_agents
+            points = self.agents
+        dist_arr = np.zeros(num_points)  # distance to each POI
+        theta_arr = np.zeros(num_points)  # angle to each poi [-pi, pi]
+        for i in range(num_points):
+            point = points[i]
+            x = point.x - agent.x
+            y = point.y - agent.y
+            if x == 0 and y == 0:   # avoid divide by zero case
+                inv_d = 0
+            else:
+                d = sqrt(x ** 2 + y ** 2)  # inverse of absolute distance to each POI
+                inv_d = 1/d
+                if inv_d > 1:   # limit to [0, 1] range
+                    inv_d = 1
+                if d > self.sensor_range:  # If it is out of sensor range, set it to False as a flag
+                    inv_d = False
+            dist_arr[i] = inv_d
+            theta_arr[i] = atan2(y, x)  # angle to each POI
+        quadrants = np.digitize(theta_arr, bins=self.sensor_bins) - 1  # which quadrant / octant each POI is in relative to the GLOBAL frame
+        return dist_arr, quadrants
+
+    def state_size(self):
+        """
+        state size is the discretization of the sensor (number of bins) times the number of POI types plus one
+        In each region, the sensor will have one bit for each POI type (distance) and one bit for the sum of the inverse distance to all other agents in that region
+        :return:
+        state size
+        """
+        return self.n_bins * (len(self.poi_options) + 1)
+
+    # returns global reward based on POI values
+    def G(self):
+        g = 0
+        for poi in self.pois:
+            g += poi.successes * poi.value
+        return g
+
+    def D(self):
+        d = np.zeros(self.N_agents)
+        for poi in self.pois:
+            d = d + poi.D_vec * poi.value
+        return d
+
+    def Dpp(self):
+        d = np.zeros(self.N_agents)
+        for poi in self.pois:
+            d = d + poi.Dpp_vec * poi.value
+        return d
+
 
 if __name__ == "__main__":
     np.random.seed(0)
@@ -234,4 +282,5 @@ if __name__ == "__main__":
 
         env.draw()
         print(i, env.G(), env.D())
-    print(env.state())
+    for agent in env.agents:
+        print(env.state(agent))
