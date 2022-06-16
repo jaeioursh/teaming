@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Agent:
     def __init__(self, x, y, cap,idx):
         self.idx=idx
@@ -9,11 +10,24 @@ class Agent:
         self._y = y                 # initial location - y
         self.poi = None             # variable to store desired POI
         self.capabilities = cap    # randomly initialize agent's capability of viewing each POI
+        self.policy = None
 
     def reset(self):
         self.x = self._x            # magically teleport to initial location
         self.y = self._y            # magically teleport to initial location
         self.poi = None             # reset to no desired POI
+
+    def step(self, new_poi):
+        if not self.poi:
+            self.poi = new_poi          # If the agent isn't already on the way to a POI
+        self.move()                     # move agent toward POI
+        self.last_visit += 1
+        if self.observe():              # If at the POI and observed
+            poi = self.poi              # get the POI
+            poi.viewing.append(self)    # add the agent to current agents viewing the POI
+            poi.viewed.append(self)
+            self.last_visit[self.poi.poi_idx] = 0   # reset the time since this agent viewed that POI
+            self.poi = None
 
     # moves agent 1-unit towards the POI
     def move(self):
@@ -28,8 +42,8 @@ class Agent:
             if R>1:
                 self.y+=(Y-self.y)/R
                 self.x+=(X-self.x)/R
-            
-            
+
+
 
     # boolean to check if agent is successful in observing desired POI
     def observe(self):

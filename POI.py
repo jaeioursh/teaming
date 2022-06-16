@@ -1,23 +1,25 @@
 import numpy as np
 
 class POI:
-    def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type,n_agents, strong_coupling=True):
+    def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type, n_agents, poi_idx, strong_coupling=False):
+        self.x = x                          # location - x
+        self.y = y                          # location - y
         self.value = value                  # POI value -- this only makes sense for some reward structures
-        self.successes = 0                  # number of times it has successfully been captured
-        self.D_vec=np.zeros(n_agents)
-        self.Dpp_vec=np.zeros(n_agents)
-        self.refresh_idx = 0                # time steps since last refresh
         self.refresh_rate = refresh_rate    # how often it is refreshed
+        self.refresh_idx = 0                # time steps since last refresh
+        self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.obs_required = obs_required    # number of observations required to fully observe the POI
         self.obs_radius = 1                 # observation radius
         self.couple = couple                # coupling requirement
-        self.x = x                          # location - x
-        self.y = y                          # location - y
         self.poi_type = poi_type            # type
-        self.strong_coupling = strong_coupling  # 1: simultaneous obvservation,  0: observations within window of time
+        self.poi_idx = poi_idx              # ID for each POI
+        self.successes = 0                  # number of times it has successfully been captured
+        self.strong_coupling = strong_coupling  # 1: simultaneous observation,  0: observations within window of time
+        self.D_vec=np.zeros(n_agents)
+        self.Dpp_vec=np.zeros(n_agents)
         self.viewed = []                    # list of all agents that viewed in refresh window
         self.viewing = []                   # list of currently observing agents
-
+        self.history = []                   # history of agents that have viewed this POI
 
     def reset(self):
         """
@@ -54,14 +56,14 @@ class POI:
                                     d.append(0)
                             else: #exactly the right number viewing
                                 d.append(g)
-                                            
+
                         self.D_vec[idxs]+=np.array(d)
                         self.Dpp_vec[idxs]+=np.array(d)
                     else: #not enough observing
                         n_needed=self.couple-len(self.viewing)
                         dpp=[g/n_needed] * len(self.viewing)
                         self.Dpp_vec[idxs]+=np.array(dpp)
-   
+
             else:
                 if len(self.viewed) >= self.couple:         # if weak coupling, check all the agents that viewed this refresh cycle
                     capabilities = [agent.capabilities[self.poi_type] for agent in self.viewed]
