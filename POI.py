@@ -42,8 +42,7 @@ class POI:
             if self.strong_coupling:  # if it requires simultaneous observation
                 if len(self.viewing) > 0:
                     idxs = [agent.idx for agent in self.viewing]
-                    capabilities = [agent.capabilities[self.poi_type] for agent in
-                                    self.viewing]  # check to make sure the agents are capable of observing this POI
+                    capabilities = [agent.capabilities[self.poi_type] for agent in self.viewing]  # check to make sure the agents are capable of observing this POI
                     capabilities = sorted(capabilities)
                     g = capabilities[0]  # Add minimum capability of agents to success of observation
                     if len(self.viewing) >= self.couple:  # if the number of simultaneous observations eets the coupling requirement

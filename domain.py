@@ -2,8 +2,8 @@ import numpy as np
 from math import pi, sqrt, atan2
 import matplotlib.pyplot as plt
 
-from Agent import Agent
-from POI import POI
+from teaming.Agent import Agent
+from teaming.POI import POI
 
 
 class DiscreteRoverDomain:
@@ -16,8 +16,9 @@ class DiscreteRoverDomain:
         self.num_poi_options = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
         self.size = 30                              # size of the world
         self.time_steps = 100                       # time steps per epoch
-        self.agents = self.gen_agents()             # generate agents
         self.pois = self.gen_pois()                 # generate POIs
+        self.agents = self.gen_agents()             # generate agents
+        
         self.n_bins = 8                             # number of bins (quadrants) for sensor discretization
         self.sensor_bins = np.linspace(pi, -pi, self.n_bins + 1, True)  # Discretization for sensor bins
         self.sensor_range = 10
@@ -106,7 +107,7 @@ class DiscreteRoverDomain:
         """
         # update all agents
         for i in range(self.N_agents):
-            if actions[i] >= self.N_pois:
+            if actions[i] == self.N_pois:
                 # The policy has chosen the "null" action
                 continue
             if actions[i] is not None:
