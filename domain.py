@@ -1,6 +1,7 @@
 import numpy as np
 from teaming.POI import POI
 from teaming.agent import Agent
+from math import pi, sqrt, atan2
 
 
 class DiscreteRoverDomain:
@@ -13,6 +14,8 @@ class DiscreteRoverDomain:
         self.time_steps = 100               # time steps per epoch
         self.agents = self.gen_agents()     # generate agents
         self.pois = self.gen_pois()         # generate POIs
+        self.n_bins = 8                     # number of bins (quadrants) for sensor discretization
+        self.sensor_bins = np.linspace(pi, -pi, self.n_bins+1, True)    # Discretization for sensor bins
         self.reset()                        # reset the system
 
     # generate list of agents
@@ -93,6 +96,37 @@ class DiscreteRoverDomain:
         state = np.concatenate((distance, agent.last_visit))
         return state
 
+    def _get_quadrant_state_info(self, agent, a_or_p='p'):
+        """
+        Get 'quadrant' state information for all other points or agents
+        Parameters
+        ----------
+        agent:  agent for which we are getting state info
+        a_or_p: is the state info for all other agents or POIs
+
+        Returns
+        -------
+        distance and quadrant number for each point
+
+        """
+        # tested this and it should be accurate
+        if a_or_p == 'p':
+            num_points = self.N_pois
+            points = self.pois
+        else:
+            num_points = self.N_agents
+            points = self.agents
+        dist_arr = np.zeros(num_points)        # distance to each POI
+        theta_arr = np.zeros(num_points)       # angle to each poi [-pi, pi]
+        for i in range(num_points):
+            point = points[i]
+            x = point.x - agent.x
+            y = point.y - agent.y
+            dist_arr[i] = sqrt(x**2 + y**2)     # absolute distance to each POI
+            theta_arr[i] = atan2(y, x)          # angle to each POI
+        quadrants = np.digitize(theta_arr, bins=self.sensor_bins)-1     # which quadrant / octant each POI is in relative to the GLOBAL frame
+        return dist_arr, quadrants
+
     #TODO: Rewrite with current state space
     def state_size(self):
         return self.N_pois * 2
@@ -143,12 +177,13 @@ if __name__ == "__main__":
     num_pois = 30
     num_states = 2**(num_pois*2)
 
-    for _ in range(1000):
+    for _ in range(1):
         env = DiscreteRoverDomain(num_agents, num_pois, poi_types)
         env.reset()
 
-        for _ in range(100):
+        for _ in range(10):
             actions = np.ndarray.tolist(np.random.randint(3, size=num_agents))
             env.step(actions)
+            print(env._get_POI_state_info(env.agents[0]))
 
         print(env.G())
