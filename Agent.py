@@ -2,15 +2,16 @@ import numpy as np
 
 
 class Agent:
-    def __init__(self, x, y, idx, cap):
+    def __init__(self, x, y, idx, cap, type):
         self.idx = idx
         self.x = x                  # location - x
         self.y = y                  # location - y
         self._x = x                 # initial location - x
         self._y = y                 # initial location - y
         self.poi = None             # variable to store desired POI
-        self.capabilities = cap    # randomly initialize agent's capability of viewing each POI
+        self.capabilities = cap     # randomly initialize agent's capability of viewing each POI
         self.policy = None
+        self.type = type            # Agent type - TODO: this should not be hard-coded
 
     def reset(self):
         self.x = self._x            # magically teleport to initial location

@@ -11,6 +11,7 @@ class DiscreteRoverDomain:
         if poi_options is None:
             poi_options = [[100, 1, 0]]
         self.N_agents = N_agents                    # number of agents
+        self.n_agent_types = 3                      # TODO: update so it is not a dummy value
         self.N_pois = N_pois                        # number of POIs
         self.poi_options = np.array(poi_options)    # options for each POI - [refresh rate, number of observations required, ID]
         self.num_poi_options = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
@@ -54,7 +55,9 @@ class DiscreteRoverDomain:
         Y = np.random.randint(0, 4, self.N_agents) + self.size // 2
         idxs = [i for i in range(self.N_agents)]
         # return an array of Agent objects at the specified locations
-        return [Agent(x, y, idx, np.random.random(self.N_pois)) for x, y, idx in zip(X, Y, idxs)]
+        # Agent initialization: x, y, idx, capabilties, type
+        return [Agent(x, y, idx, np.random.random(self.N_pois), np.random.randint(0, self.n_agent_types))
+                for x, y, idx in zip(X, Y, idxs)]
 
     # generate list of POIs
     def gen_pois(self):
@@ -159,8 +162,8 @@ class DiscreteRoverDomain:
         :return state, state_idx:
         """
         # initialize everything at -1 so it is easily distinguishable
-        # Number of sensor bins as rows, poi types plus agents for columns (hence +1)
-        state = np.zeros((self.n_bins, len(self.poi_options) + 1)) - 1
+        # Number of sensor bins as rows, poi types plus agents types for columns
+        state = np.zeros((self.n_bins, len(self.poi_options) + self.n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
         ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
@@ -187,9 +190,9 @@ class DiscreteRoverDomain:
             if not d:    # If the agent is out of sensor range, skip it
                 continue    # False was used as the arbitrary flag to indicate this agent is out of sensor range
             quad = ag_quads[j]
-            ag_col = len(self.poi_options)  # last column in each row is dedicated to agents in region
+            ag_col = len(self.poi_options) + self.agents[j].type  # agent columns start after POI columns
             state[quad, ag_col] += d   # Sum of distances to all agents
-            if state[quad, ag_col] > 1:     # bound to [0, 1]
+            if state[quad, ag_col] > 1:     # bound to [0, 1] - there is probably a more efficient check
                 state[quad, ag_col] = 1
             # Keeps track of the closest agent in each region
             if d > curr_best[quad]:
