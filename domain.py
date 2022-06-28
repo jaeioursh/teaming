@@ -14,14 +14,14 @@ class DiscreteRoverDomain:
         self.n_agent_types = 3                      # TODO: update so it is not a dummy value
         self.N_pois = N_pois                        # number of POIs
         self.poi_options = np.array(poi_options)    # options for each POI - [refresh rate, number of observations required, ID]
-        self.num_poi_options = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
+        self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
         self.size = 30                              # size of the world
         self.time_steps = 100                       # time steps per epoch
         self.pois = self.gen_pois()                 # generate POIs
         self.agents = self.gen_agents()             # generate agents
         
-        self.n_bins = 8                             # number of bins (quadrants) for sensor discretization
-        self.sensor_bins = np.linspace(pi, -pi, self.n_bins + 1, True)  # Discretization for sensor bins
+        self.n_regions = 8                             # number of bins (quadrants) for sensor discretization
+        self.sensor_bins = np.linspace(pi, -pi, self.n_regions + 1, True)  # Discretization for sensor bins
         self.sensor_range = 10
         self.reset()                                # reset the system
         self.vis = 0
@@ -163,7 +163,7 @@ class DiscreteRoverDomain:
         """
         # initialize everything at -1 so it is easily distinguishable
         # Number of sensor bins as rows, poi types plus agents types for columns
-        state = np.zeros((self.n_bins, len(self.poi_options) + self.n_agent_types)) - 1
+        state = np.zeros((self.n_regions, len(self.poi_options) + self.n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
         ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
@@ -181,7 +181,7 @@ class DiscreteRoverDomain:
                 state_idx[quad, poi_type] = i
 
         # Determine closest agent in each region and sum inverse distances of all agents in each quadrant
-        curr_best = np.zeros(self.n_bins) - 1
+        curr_best = np.zeros(self.n_regions) - 1
         for j in range(len(self.agents)):
             if self.agents[j] == agent:   # If looking at the current agent, skip it
                 continue
@@ -198,7 +198,8 @@ class DiscreteRoverDomain:
             if d > curr_best[quad]:
                 curr_best[quad] = d
                 state_idx[quad, ag_col] = j
-
+        agent.state = state
+        agent.state_idx = state_idx
         return state, state_idx
 
     def _get_quadrant_state_info(self, agent, a_or_p='p'):
@@ -250,7 +251,39 @@ class DiscreteRoverDomain:
         :return:
         state size
         """
-        return self.n_bins * (len(self.poi_options) + 1)
+        return self.n_regions * (len(self.poi_options) + 1)
+
+    def action(self, agent, nn_output):
+        """
+
+        :param agent:
+        :param nn_output: Assumes output from the NN a 1xN numpy array
+        :return: agent, poi, or False (for no movement)
+        """
+        nn_max_idx = np.argmax(nn_output)
+
+        # TODO: find a way to handle the "nothing there" case
+        # Currently, -1 indicates no POI of that type in that region
+        # But there may be POIs of other types being overlooked because -1 is getting picked up as min
+        # Maybe make it so -1 is not the flag? but my brain is too dead to unwind that today from the state
+        # So here we are on row 5 of the comment.
+        # I should write a program that ignores all changes once my comments get long enough
+        # Because that's when I know my brain is really done for the day.
+
+        if nn_max_idx < self.n_regions:
+            state_idx = np.argmin(agent.state[nn_max_idx][:self.n_poi_types])
+            poi_idx = agent.state_metadata[nn_max_idx][state_idx]
+            return self.pois[poi_idx]
+
+        elif nn_max_idx < self.n_regions * 2:
+            nn_max_idx -= self.n_regions
+            state_idx = np.argmin(agent.state[nn_max_idx][self.n_poi_types:]) + self.n_poi_types
+            ag_idx = agent.state_metadata[nn_max_idx][state_idx]
+            return self.agents[ag_idx]
+
+        else:
+            return False
+
 
     # returns global reward based on POI values
     def G(self):

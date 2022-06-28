@@ -12,6 +12,8 @@ class Agent:
         self.capabilities = cap     # randomly initialize agent's capability of viewing each POI
         self.policy = None
         self.type = type            # Agent type - TODO: this should not be hard-coded
+        self.state = None           # Current state
+        self.state_metadata = None       # Metadata about the state
 
     def reset(self):
         self.x = self._x            # magically teleport to initial location
