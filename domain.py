@@ -161,7 +161,9 @@ class DiscreteRoverDomain:
         :param agent:
         :return state, state_idx:
         """
+        # TODO: Change this
         # initialize everything at -1 so it is easily distinguishable
+
         # Number of sensor bins as rows, poi types plus agents types for columns
         state = np.zeros((self.n_regions, len(self.poi_options) + self.n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
@@ -171,8 +173,8 @@ class DiscreteRoverDomain:
         # Determine closest POI in each region
         for i in range(len(self.pois)):
             d = poi_dist[i]
-            if not d:       # If the POI is out of range, skip it
-                continue    # False was used as the arbitrary flag to indicate this POI is out of sensor range
+            if d == -1:         # If the POI is out of range, skip it
+                continue        # -1 was used as the arbitrary flag to indicate this POI is out of sensor range
             quad = poi_quads[i]
             poi_type = self.pois[i].poi_type
             # d is inverse distance, so this finds the closest one
@@ -187,11 +189,11 @@ class DiscreteRoverDomain:
                 continue
 
             d = ag_dist[j]
-            if not d:    # If the agent is out of sensor range, skip it
-                continue    # False was used as the arbitrary flag to indicate this agent is out of sensor range
+            if d == -1:         # If the agent is out of range, skip it
+                continue        # -1 was used as the arbitrary flag to indicate this agent is out of sensor range
             quad = ag_quads[j]
             ag_col = len(self.poi_options) + self.agents[j].type  # agent columns start after POI columns
-            state[quad, ag_col] += d   # Sum of distances to all agents
+            state[quad, ag_col] += d   # Sum of distances to all agents in that region
             if state[quad, ag_col] > 1:     # bound to [0, 1] - there is probably a more efficient check
                 state[quad, ag_col] = 1
             # Keeps track of the closest agent in each region
@@ -227,18 +229,19 @@ class DiscreteRoverDomain:
         dist_arr = np.zeros(num_points)  # distance to each POI
         theta_arr = np.zeros(num_points)  # angle to each poi [-pi, pi]
         for i in range(num_points):
+            # Compare each point (POI or other agent) to position of current agent
             point = points[i]
             x = point.x - agent.x
             y = point.y - agent.y
             if x == 0 and y == 0:   # avoid divide by zero case
-                inv_d = 0
+                inv_d = 2           # Set inverse distance to 2 - if <= 1 unit away, inv_d = 1. Need to differentiate "I am here"
             else:
                 d = sqrt(x ** 2 + y ** 2)  # inverse of absolute distance to each POI
                 inv_d = 1/d
                 if inv_d > 1:   # limit to [0, 1] range
                     inv_d = 1
-                if d > self.sensor_range:  # If it is out of sensor range, set it to False as a flag
-                    inv_d = False
+                if d > self.sensor_range:  # If it is out of sensor range, set it to -1 as a flag
+                    inv_d = -1
             dist_arr[i] = inv_d
             theta_arr[i] = atan2(y, x)  # angle to each POI
         quadrants = np.digitize(theta_arr, bins=self.sensor_bins) - 1  # which quadrant / octant each POI is in relative to the GLOBAL frame
@@ -251,7 +254,7 @@ class DiscreteRoverDomain:
         :return:
         state size
         """
-        return self.n_regions * (len(self.poi_options) + 1)
+        return self.n_regions * (len(self.poi_options) + self.n_agent_types)
 
     def action(self, agent, nn_output):
         """
@@ -260,27 +263,36 @@ class DiscreteRoverDomain:
         :param nn_output: Assumes output from the NN a 1xN numpy array
         :return: agent, poi, or False (for no movement)
         """
+        # TODO: handle "nothing of this type in this region" case
         nn_max_idx = np.argmax(nn_output)
 
-        # TODO: find a way to handle the "nothing there" case
-        # Currently, -1 indicates no POI of that type in that region
-        # But there may be POIs of other types being overlooked because -1 is getting picked up as min
-        # Maybe make it so -1 is not the flag? but my brain is too dead to unwind that today from the state
-        # So here we are on row 5 of the comment.
-        # I should write a program that ignores all changes once my comments get long enough
-        # Because that's when I know my brain is really done for the day.
-
+        # first (n_regions) number of outputs represent POIs
         if nn_max_idx < self.n_regions:
-            state_idx = np.argmin(agent.state[nn_max_idx][:self.n_poi_types])
+            if np.max(agent.state[nn_max_idx][:self.n_poi_types]) == -1:
+                # Flag that there's nothing of that type in that region
+                return False
+            # Get the index of the max value (aka min distance) POI in that region of any type
+            state_idx = np.argmax(agent.state[nn_max_idx][:self.n_poi_types])
+            # Find and return the closest POI in that region
             poi_idx = agent.state_metadata[nn_max_idx][state_idx]
             return self.pois[poi_idx]
 
+        # Second (n_regions) number of outputs represent agents
         elif nn_max_idx < self.n_regions * 2:
+            if np.max(agent.state[nn_max_idx][self.n_poi_types:]) == -1:
+                # Flag that there's nothing of that type in that region
+                return False
+            # Need to get the region number (subtract n_reigons since this is the second set of them)
             nn_max_idx -= self.n_regions
-            state_idx = np.argmin(agent.state[nn_max_idx][self.n_poi_types:]) + self.n_poi_types
+            # Get the index the max value (aka min distance) set of agents in that region of any type
+            # TODO: Discuss with Josh - why are we using the sum of distances of agents in that region instead of just the closest agent?
+            state_idx = np.argmax(agent.state[nn_max_idx][self.n_poi_types:]) + self.n_poi_types
+            # Find and return the closest agent in that region
+            # See not above - closest is much more vague when you're doing sum of inverse distances
             ag_idx = agent.state_metadata[nn_max_idx][state_idx]
             return self.agents[ag_idx]
 
+        # If the NN chose the dummy final option, then do nothing
         else:
             return False
 
