@@ -2,8 +2,8 @@ import numpy as np
 from math import pi, sqrt, atan2
 import matplotlib.pyplot as plt
 
-from teaming.Agent import Agent
-from teaming.POI import POI
+from Agent import Agent
+from POI import POI
 
 
 class DiscreteRoverDomain:
@@ -263,7 +263,6 @@ class DiscreteRoverDomain:
         :param nn_output: Assumes output from the NN a 1xN numpy array
         :return: agent, poi, or False (for no movement)
         """
-        # TODO: handle "nothing of this type in this region" case
         nn_max_idx = np.argmax(nn_output)
 
         # first (n_regions) number of outputs represent POIs
