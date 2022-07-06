@@ -2,8 +2,8 @@ import numpy as np
 from math import pi, sqrt, atan2
 import matplotlib.pyplot as plt
 
-from Agent import Agent
-from POI import POI
+from teaming.Agent import Agent
+from teaming.POI import POI
 
 
 class DiscreteRoverDomain:
@@ -11,7 +11,7 @@ class DiscreteRoverDomain:
         if poi_options is None:
             poi_options = [[100, 1, 0]]
         self.N_agents = N_agents                    # number of agents
-        self.n_agent_types = 3                      # TODO: update so it is not a dummy value
+        self.n_agent_types = 1                      # TODO: update so it is not a dummy value
         self.N_pois = N_pois                        # number of POIs
         self.poi_options = np.array(poi_options)    # options for each POI - [refresh rate, number of observations required, ID]
         self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
@@ -145,7 +145,7 @@ class DiscreteRoverDomain:
         for _ in range(self.time_steps):
             actions = []
             for agent in self.agents:
-                st = self.state(agent)  # gets the state
+                st, _ = self.state(agent)  # gets the state
                 act = agent.policy(st)  # picks an action based on the policy
                 act_detensorfied = np.argmax(
                     act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
@@ -161,8 +161,6 @@ class DiscreteRoverDomain:
         :param agent:
         :return state, state_idx:
         """
-        # TODO: Change this
-        # initialize everything at -1 so it is easily distinguishable
 
         # Number of sensor bins as rows, poi types plus agents types for columns
         state = np.zeros((self.n_regions, len(self.poi_options) + self.n_agent_types)) - 1
@@ -254,7 +252,7 @@ class DiscreteRoverDomain:
         :return:
         state size
         """
-        return self.n_regions * (len(self.poi_options) + self.n_agent_types)
+        return self.n_regions * (self.n_poi_types + self.n_agent_types)
 
     def action(self, agent, nn_output):
         """
@@ -295,6 +293,13 @@ class DiscreteRoverDomain:
         else:
             return False
 
+    def get_action_size(self):
+        """
+        Output should be the number of regions in the sensor times two plus one.
+        Output can choose the closest POI in each region, the closest agent in each region, or null (do nothing).
+        :return:
+        """
+        return (self.n_regions * 2) + 1
 
     # returns global reward based on POI values
     def G(self):
