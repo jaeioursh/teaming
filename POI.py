@@ -4,6 +4,7 @@ import numpy as np
 class POI:
     def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type, n_agents, poi_idx,
                  strong_coupling=False):
+        self.class_type = 'POI'
         self.x = x                          # location - x
         self.y = y                          # location - y
         self.value = value                  # POI value -- this only makes sense for some reward structures
@@ -34,6 +35,7 @@ class POI:
         self.Dpp_vec[:] = 0
         self.viewed = []
         self.viewing = []
+        self.curr_rew = 0
 
     def refresh(self):
         self.refresh_idx += 1  # increase number of time steps since last refresh

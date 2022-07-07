@@ -113,8 +113,8 @@ class DiscreteRoverDomain:
             if actions[i] == self.N_pois:
                 # The policy has chosen the "null" action
                 continue
-            if actions[i] is not None:
-                self.agents[i].poi = self.pois[actions[i]]  # agents set a new goal at every time step
+            if actions[i]:
+                self.agents[i].poi = actions[i]  # agents set a new goal at every time step
             self.agents[i].step()  # move agent toward POI
 
         # refresh all POIs and reset which agents are currently viewing
@@ -146,11 +146,12 @@ class DiscreteRoverDomain:
             actions = []
             for agent in self.agents:
                 st, _ = self.state(agent)  # gets the state
-                act = agent.policy(st)  # picks an action based on the policy
-                act_detensorfied = np.argmax(
-                    act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
+                act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
+                # act_detensorfied = np.argmax(
+                #     act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
+                act = self.action(agent, act_array)
                 # TODO: add check to make sure action is valid
-                actions.append(act_detensorfied)  # save the action to list of actions
+                actions.append(act)  # save the action to list of actions
             self.step(actions)
 
         return self.G()
@@ -265,28 +266,26 @@ class DiscreteRoverDomain:
 
         # first (n_regions) number of outputs represent POIs
         if nn_max_idx < self.n_regions:
-            if np.max(agent.state[nn_max_idx][:self.n_poi_types]) == -1:
-                # Flag that there's nothing of that type in that region
-                return False
             # Get the index of the max value (aka min distance) POI in that region of any type
             state_idx = np.argmax(agent.state[nn_max_idx][:self.n_poi_types])
-            # Find and return the closest POI in that region
-            poi_idx = agent.state_metadata[nn_max_idx][state_idx]
+            if np.max(agent.state[nn_max_idx][state_idx]) == -1:
+                # Flag that there's nothing of that type in that region
+                return False            # Find and return the closest POI in that region
+            poi_idx = int(agent.state_idx[nn_max_idx][state_idx])
             return self.pois[poi_idx]
 
         # Second (n_regions) number of outputs represent agents
         elif nn_max_idx < self.n_regions * 2:
-            if np.max(agent.state[nn_max_idx][self.n_poi_types:]) == -1:
+            nn_max_idx -= self.n_regions
+            # Need to get the region number (subtract n_reigons since this is the second set of them)
+            # Get the index the max value (aka min distance) set of agents in that region of any type
+            state_idx = np.argmax(agent.state[nn_max_idx][self.n_poi_types:]) + self.n_poi_types
+            if np.max(agent.state[nn_max_idx][state_idx]) == -1:
                 # Flag that there's nothing of that type in that region
                 return False
-            # Need to get the region number (subtract n_reigons since this is the second set of them)
-            nn_max_idx -= self.n_regions
-            # Get the index the max value (aka min distance) set of agents in that region of any type
-            # TODO: Discuss with Josh - why are we using the sum of distances of agents in that region instead of just the closest agent?
-            state_idx = np.argmax(agent.state[nn_max_idx][self.n_poi_types:]) + self.n_poi_types
             # Find and return the closest agent in that region
             # See not above - closest is much more vague when you're doing sum of inverse distances
-            ag_idx = agent.state_metadata[nn_max_idx][state_idx]
+            ag_idx = int(agent.state_idx[nn_max_idx][state_idx])
             return self.agents[ag_idx]
 
         # If the NN chose the dummy final option, then do nothing
