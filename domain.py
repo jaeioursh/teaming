@@ -17,9 +17,11 @@ class DiscreteRoverDomain:
         self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
         self.size = 30                              # size of the world
         self.time_steps = 100                       # time steps per epoch
+        self.theoretical_max_g = 0
         self.pois = self.gen_pois()                 # generate POIs
         self.agents = self.gen_agents()             # generate agents
-        
+        self.avg_false = []
+
         self.n_regions = 8                             # number of bins (quadrants) for sensor discretization
         self.sensor_bins = np.linspace(pi, -pi, self.n_regions + 1, True)  # Discretization for sensor bins
         self.sensor_range = 10
@@ -80,6 +82,10 @@ class DiscreteRoverDomain:
         # poi_type = [i for i in range(self.N_pois)]              # Each one is a different type
         # value = poi_type                                        # Value of the POI
 
+        num_refreshes = np.ceil(self.time_steps / poi_vals[:, 0]) # how many times each POI can be captured
+        self.theoretical_max_g = sum(num_refreshes)
+        # print(self.theoretical_max_g)
+
         refresh_rate = np.ndarray.tolist(poi_vals[:, 0])
         obs_required = np.ndarray.tolist(poi_vals[:, 1])
         poi_type = np.ndarray.tolist(poi_vals[:, 2])
@@ -100,6 +106,12 @@ class DiscreteRoverDomain:
             a.reset()
         for p in self.pois:  # reset all POIs to initial config
             p.reset()
+        self.avg_false = []
+
+    def new_env(self):
+        self.pois = self.gen_pois()
+        self.agents = self.gen_agents()
+        self.avg_false = []
 
     # perform one state transition given a list of actions for each agent
     def step(self, actions):
@@ -110,17 +122,14 @@ class DiscreteRoverDomain:
         """
         # update all agents
         for i in range(self.N_agents):
-            if actions[i] == self.N_pois:
-                # The policy has chosen the "null" action
-                continue
             if actions[i]:
                 self.agents[i].poi = actions[i]  # agents set a new goal at every time step
-            self.agents[i].step()  # move agent toward POI
+                self.agents[i].step()  # move agent toward POI
 
         # refresh all POIs and reset which agents are currently viewing
-        for i in range(self.N_pois):
-            self.pois[i].refresh()
-            self.pois[i].viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
+        for j in range(self.N_pois):
+            self.pois[j].refresh()
+            self.pois[j].viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
     def run_sim(self, policies):
         """
@@ -142,6 +151,8 @@ class DiscreteRoverDomain:
         for i in range(len(policies)):
             self.agents[i].policy = policies[i]
 
+
+        check = 0
         for _ in range(self.time_steps):
             actions = []
             for agent in self.agents:
@@ -153,8 +164,10 @@ class DiscreteRoverDomain:
                 # TODO: add check to make sure action is valid
                 actions.append(act)  # save the action to list of actions
             self.step(actions)
+            self.avg_false.append(actions.count(False) / len(actions))
 
-        return self.G()
+        # print("percent steps taken:", check / (self.time_steps * self.N_agents))
+        return self.G(), np.mean(self.avg_false)
 
     def state(self, agent):
         """
@@ -270,7 +283,8 @@ class DiscreteRoverDomain:
             state_idx = np.argmax(agent.state[nn_max_idx][:self.n_poi_types])
             if np.max(agent.state[nn_max_idx][state_idx]) == -1:
                 # Flag that there's nothing of that type in that region
-                return False            # Find and return the closest POI in that region
+                return False
+            # Find and return the closest POI in that region
             poi_idx = int(agent.state_idx[nn_max_idx][state_idx])
             return self.pois[poi_idx]
 

@@ -12,7 +12,7 @@ class POI:
         self.refresh_idx = 0                # time steps since last refresh
         self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.obs_required = obs_required    # number of observations required to fully observe the POI
-        self.obs_radius = 1                 # observation radius
+        self.obs_radius = 2                 # observation radius
         self.couple = couple                # coupling requirement
         self.poi_type = poi_type            # type
         self.poi_idx = poi_idx              # ID for each POI
