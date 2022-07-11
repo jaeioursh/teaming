@@ -12,11 +12,12 @@ class POI:
         self.refresh_idx = 0                # time steps since last refresh
         self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.obs_required = obs_required    # number of observations required to fully observe the POI
-        self.obs_radius = 2                 # observation radius
+        self.obs_radius = 1                 # observation radius
         self.couple = couple                # coupling requirement
         self.poi_type = poi_type            # type
         self.poi_idx = poi_idx              # ID for each POI
         self.successes = 0                  # number of times it has successfully been captured
+        self.observed = 0                   # 0: not observed during this refresh cycle | 1: observed during this cycle
         self.strong_coupling = strong_coupling      # 1: simultaneous observation,  0: observations within window of time
         self.D_vec = np.zeros(n_agents)     # difference rewards
         self.Dpp_vec = np.zeros(n_agents)   # D++ rewards
@@ -39,15 +40,15 @@ class POI:
 
     def refresh(self):
         self.refresh_idx += 1  # increase number of time steps since last refresh
-        if self.refresh_idx == self.refresh_rate:  # if it has hit the refresh
-            self.refresh_idx = 0  # reset the time steps
+        if not self.observed: # if it has not yet been observed this refresh cycle
             if self.strong_coupling:  # if it requires simultaneous observation
                 if len(self.viewing) > 0:
                     idxs = [agent.idx for agent in self.viewing]
                     capabilities = [agent.capabilities[self.poi_type] for agent in self.viewing]  # check to make sure the agents are capable of observing this POI
                     capabilities = sorted(capabilities)
                     g = capabilities[0]  # Add minimum capability of agents to success of observation
-                    if len(self.viewing) >= self.couple:  # if the number of simultaneous observations eets the coupling requirement
+                    if len(self.viewing) >= self.couple:  # if the number of simultaneous observations meets the coupling requirement
+                        self.observed = 1
                         self.successes += g
                         # difference reward block
                         d = []
@@ -67,11 +68,17 @@ class POI:
                         n_needed = self.couple - len(self.viewing)
                         dpp = [g / n_needed] * len(self.viewing)
                         self.Dpp_vec[idxs] += np.array(dpp)
-
             else:
                 if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
                     capabilities = [agent.capabilities[self.poi_type] for agent in self.viewed]
                     g = min(capabilities)
                     self.successes += g
+                    self.observed = 1
+                    # self.viewed = []  # reset the agents that have viewed
+        if self.refresh_idx == self.refresh_rate:  # if it has hit the refresh
+            self.refresh_idx = 0  # reset the time steps
+            self.observed = 0
+            self.viewed = []
 
-            self.viewed = []  # reset the agents that have viewed
+
+

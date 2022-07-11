@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 
 from teaming.Agent import Agent
 from teaming.POI import POI
+from scipy.interpolate import interp1d
 
 
 class DiscreteRoverDomain:
-    def __init__(self, N_agents, N_pois=4, poi_options=None):
+    def __init__(self, N_agents, N_pois=4, poi_options=None, with_agents=True):
         if poi_options is None:
             poi_options = [[100, 1, 0]]
         self.N_agents = N_agents                    # number of agents
@@ -15,18 +16,20 @@ class DiscreteRoverDomain:
         self.N_pois = N_pois                        # number of POIs
         self.poi_options = np.array(poi_options)    # options for each POI - [refresh rate, number of observations required, ID]
         self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
-        self.size = 30                              # size of the world
+        self.size = 10                              # size of the world
         self.time_steps = 100                       # time steps per epoch
         self.theoretical_max_g = 0
         self.pois = self.gen_pois()                 # generate POIs
         self.agents = self.gen_agents()             # generate agents
         self.avg_false = []
+        self.with_agents = with_agents              # Include other agents in state / action space
 
         self.n_regions = 8                             # number of bins (quadrants) for sensor discretization
         self.sensor_bins = np.linspace(pi, -pi, self.n_regions + 1, True)  # Discretization for sensor bins
         self.sensor_range = 10
         self.reset()                                # reset the system
         self.vis = 0
+        self.rand_action_rate = 0.05                # Percent of time a random action is chosen
 
     def draw(self):
         if self.vis == 0:
@@ -53,8 +56,8 @@ class DiscreteRoverDomain:
         """
         # creates an array of x, y positions for each agent
         # locations are [0,4] plus half the size of the world
-        X = np.random.randint(0, 4, self.N_agents) + self.size // 2
-        Y = np.random.randint(0, 4, self.N_agents) + self.size // 2
+        X = np.random.randint(0, 2, self.N_agents) + self.size // 2
+        Y = np.random.randint(0, 2, self.N_agents) + self.size // 2
         idxs = [i for i in range(self.N_agents)]
         # return an array of Agent objects at the specified locations
         # Agent initialization: x, y, idx, capabilties, type
@@ -90,7 +93,7 @@ class DiscreteRoverDomain:
         obs_required = np.ndarray.tolist(poi_vals[:, 1])
         poi_type = np.ndarray.tolist(poi_vals[:, 2])
 
-        couple = [2 for _ in range(self.N_pois)]  # coupling requirement for all POIs
+        couple = [1 for _ in range(self.N_pois)]  # coupling requirement for all POIs
         value = [1 for _ in range(self.N_pois)]  # Value of the POI
         poi_idx = [i for i in range(self.N_pois)]
         # return a list of the POI objects
@@ -151,12 +154,11 @@ class DiscreteRoverDomain:
         for i in range(len(policies)):
             self.agents[i].policy = policies[i]
 
-
-        check = 0
         for _ in range(self.time_steps):
             actions = []
             for agent in self.agents:
-                st, _ = self.state(agent)  # gets the state
+                self.state(agent)  # gets the state
+                st = agent.state
                 act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
                 # act_detensorfied = np.argmax(
                 #     act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
@@ -177,6 +179,9 @@ class DiscreteRoverDomain:
         """
 
         # Number of sensor bins as rows, poi types plus agents types for columns
+        n_agent_types = self.n_agent_types
+        if not self.with_agents:
+            n_agent_types = 0
         state = np.zeros((self.n_regions, len(self.poi_options) + self.n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
@@ -196,25 +201,25 @@ class DiscreteRoverDomain:
 
         # Determine closest agent in each region and sum inverse distances of all agents in each quadrant
         curr_best = np.zeros(self.n_regions) - 1
-        for j in range(len(self.agents)):
-            if self.agents[j] == agent:   # If looking at the current agent, skip it
-                continue
+        if self.with_agents:
+            for j in range(len(self.agents)):
+                if self.agents[j] == agent:   # If looking at the current agent, skip it
+                    continue
 
-            d = ag_dist[j]
-            if d == -1:         # If the agent is out of range, skip it
-                continue        # -1 was used as the arbitrary flag to indicate this agent is out of sensor range
-            quad = ag_quads[j]
-            ag_col = len(self.poi_options) + self.agents[j].type  # agent columns start after POI columns
-            state[quad, ag_col] += d   # Sum of distances to all agents in that region
-            if state[quad, ag_col] > 1:     # bound to [0, 1] - there is probably a more efficient check
-                state[quad, ag_col] = 1
-            # Keeps track of the closest agent in each region
-            if d > curr_best[quad]:
-                curr_best[quad] = d
-                state_idx[quad, ag_col] = j
+                d = ag_dist[j]
+                if d == -1:         # If the agent is out of range, skip it
+                    continue        # -1 was used as the arbitrary flag to indicate this agent is out of sensor range
+                quad = ag_quads[j]
+                ag_col = len(self.poi_options) + self.agents[j].type  # agent columns start after POI columns
+                state[quad, ag_col] += d   # Sum of distances to all agents in that region
+                if state[quad, ag_col] > 1:     # bound to [0, 1] - there is probably a more efficient check
+                    state[quad, ag_col] = 1
+                # Keeps track of the closest agent in each region
+                if d > curr_best[quad]:
+                    curr_best[quad] = d
+                    state_idx[quad, ag_col] = j
         agent.state = state
         agent.state_idx = state_idx
-        return state, state_idx
 
     def _get_quadrant_state_info(self, agent, a_or_p='p'):
         """
@@ -236,12 +241,13 @@ class DiscreteRoverDomain:
             points = self.pois
         # Info for other agents
         else:
-            num_points = self.N_agents
+            num_points = self.N_agents - 1
             points = self.agents
         dist_arr = np.zeros(num_points)  # distance to each POI
         theta_arr = np.zeros(num_points)  # angle to each poi [-pi, pi]
         for i in range(num_points):
             # Compare each point (POI or other agent) to position of current agent
+            # Check to make sure it is not the same agent happens later (ignore for now for indexing reasons)
             point = points[i]
             x = point.x - agent.x
             y = point.y - agent.y
@@ -266,7 +272,10 @@ class DiscreteRoverDomain:
         :return:
         state size
         """
-        return self.n_regions * (self.n_poi_types + self.n_agent_types)
+        if self.with_agents:
+            return self.n_regions * (self.n_poi_types + self.n_agent_types)
+        else:
+            return self.n_regions * self.n_poi_types
 
     def action(self, agent, nn_output):
         """
@@ -275,7 +284,13 @@ class DiscreteRoverDomain:
         :param nn_output: Assumes output from the NN a 1xN numpy array
         :return: agent, poi, or False (for no movement)
         """
-        nn_max_idx = np.argmax(nn_output)
+
+        # Choose a random action a small percent of the time in order to get out of being stuck
+        # If the agent policy has chosen not to move and the world isn't changing, the agent will never move.
+        if np.random.random() < self.rand_action_rate:
+            nn_max_idx = np.random.randint(0, len(nn_output))
+        else:
+            nn_max_idx = np.argmax(nn_output)
 
         # first (n_regions) number of outputs represent POIs
         if nn_max_idx < self.n_regions:
@@ -312,7 +327,10 @@ class DiscreteRoverDomain:
         Output can choose the closest POI in each region, the closest agent in each region, or null (do nothing).
         :return:
         """
-        return (self.n_regions * 2) + 1
+        if self.with_agents:
+            return (self.n_regions * 2) + 1
+        else:
+            return self.n_regions + 1
 
     # returns global reward based on POI values
     def G(self):
@@ -337,16 +355,17 @@ class DiscreteRoverDomain:
 if __name__ == "__main__":
     np.random.seed(0)
     poi_types = [[100, 1, 0]]  # , [10, 3, 1], [50, 5, 2]]
-    num_agents = 2
-    num_pois = 30
+    num_agents = 1
+    num_pois = 1
     num_states = 2 ** (num_pois * 2)
     env = DiscreteRoverDomain(num_agents, num_pois, poi_types)
 
     for i in range(30):
-        actions = [3, 3, 3]
+
+        actions = [env.pois[0]]
         env.step(actions)
 
-        env.draw()
+        # env.draw()
         print(i, env.G(), env.D())
     for agent in env.agents:
         print(env.state(agent))
