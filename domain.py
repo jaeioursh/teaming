@@ -182,7 +182,7 @@ class DiscreteRoverDomain:
         n_agent_types = self.n_agent_types
         if not self.with_agents:
             n_agent_types = 0
-        state = np.zeros((self.n_regions, len(self.poi_options) + self.n_agent_types)) - 1
+        state = np.zeros((self.n_regions, len(self.poi_options) + n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
         ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
@@ -305,6 +305,9 @@ class DiscreteRoverDomain:
 
         # Second (n_regions) number of outputs represent agents
         elif nn_max_idx < self.n_regions * 2:
+            if not self.with_agents:
+                return False
+
             nn_max_idx -= self.n_regions
             # Need to get the region number (subtract n_reigons since this is the second set of them)
             # Get the index the max value (aka min distance) set of agents in that region of any type
