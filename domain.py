@@ -4,38 +4,40 @@ import matplotlib.pyplot as plt
 
 from teaming.Agent import Agent
 from teaming.POI import POI
-from scipy.interpolate import interp1d
+from teaming.parameters00 import Parameters
 
 
 class DiscreteRoverDomain:
-    def __init__(self, N_agents, N_pois=4, poi_options=None, with_agents=True):
-        if poi_options is None:
-            poi_options = [[100, 1, 0]]
-        self.N_agents = N_agents                    # number of agents
-        self.n_agent_types = 1                      # TODO: update so it is not a dummy value
-        self.N_pois = N_pois                        # number of POIs
-        self.poi_options = np.array(poi_options)    # options for each POI - [refresh rate, number of observations required, ID]
-        self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
-        self.size = 10                              # size of the world
-        self.time_steps = 100                       # time steps per epoch
-        self.theoretical_max_g = 0
-        self.pois = self.gen_pois()                 # generate POIs
-        self.agents = self.gen_agents()             # generate agents
-        self.avg_false = []
-        self.with_agents = with_agents              # Include other agents in state / action space
+    def __init__(self, p):
+        if p.poi_options is None:
+            p.poi_options = [[100, 1, 0]]
+        self.p = p
+        self.n_agents = p.n_agents                      # number of agents
+        self.n_agent_types = p.n_agent_types            # number of types of agents
+        self.n_pois = p.n_pois                          # number of POIs
+        self.size = p.size                              # size of the world
+        self.time_steps = p.time_steps                  # time steps per epoch
+        self.with_agents = p.with_agents                # Include other agents in state / action space
+        self.n_regions = p.n_regions                    # number of bins (quadrants) for sensor discretization
+        self.sensor_range = p.sensor_range
+        self.rand_action_rate = p.rand_action_rate      # Percent of time a random action is chosen
 
-        self.n_regions = 8                             # number of bins (quadrants) for sensor discretization
+        self.avg_false = []                             # How many times agents choose null actions
+        self.theoretical_max_g = 0                      # Maximum G if all POIs were perfectly captured
+        self.vis = 0                                    # To visualize or not to visualize
+        self.poi_options = np.array(p.poi_options)      # options for each POI - [refresh rate, number of observations required, ID]
+        self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
+        self.pois = self.gen_pois()                     # generate POIs
+        self.agents = self.gen_agents()                 # generate agents
         self.sensor_bins = np.linspace(pi, -pi, self.n_regions + 1, True)  # Discretization for sensor bins
-        self.sensor_range = 10
+
         self.reset()                                # reset the system
-        self.vis = 0
-        self.rand_action_rate = 0.05                # Percent of time a random action is chosen
 
     def draw(self):
         if self.vis == 0:
             self.vis = 1
             plt.ion()
-            self.agent_offset = np.random.normal(0, 0.5, (self.N_agents, 2))
+            self.agent_offset = np.random.normal(0, 0.5, (self.n_agents, 2))
         plt.clf()
         xy = np.array([[poi.x, poi.y] for poi in self.pois])
         XY = np.array([[agent.x, agent.y] for agent in self.agents]) + self.agent_offset
@@ -56,12 +58,12 @@ class DiscreteRoverDomain:
         """
         # creates an array of x, y positions for each agent
         # locations are [0,4] plus half the size of the world
-        X = np.random.randint(0, 2, self.N_agents) + self.size // 2
-        Y = np.random.randint(0, 2, self.N_agents) + self.size // 2
-        idxs = [i for i in range(self.N_agents)]
+        X = np.random.randint(0, 2, self.n_agents) + self.size // 2
+        Y = np.random.randint(0, 2, self.n_agents) + self.size // 2
+        idxs = [i for i in range(self.n_agents)]
         # return an array of Agent objects at the specified locations
         # Agent initialization: x, y, idx, capabilties, type
-        return [Agent(x, y, idx, np.random.random(self.N_pois), np.random.randint(0, self.n_agent_types))
+        return [Agent(x, y, idx, np.random.random(self.n_pois), np.random.randint(0, self.n_agent_types))
                 for x, y, idx in zip(X, Y, idxs)]
 
     # generate list of POIs
@@ -72,12 +74,12 @@ class DiscreteRoverDomain:
         """
         num_poi_types = np.shape(self.poi_options)[0]
         randints = np.random.randint(num_poi_types,
-                                     size=self.N_pois)  # get an array of random integers - integers represent the POI type, one for each POI in the world
+                                     size=self.n_pois)  # get an array of random integers - integers represent the POI type, one for each POI in the world
         poi_vals = self.poi_options[randints, :]  # array of values from the POI options for each POI in the world
-        x = np.random.randint(0, self.size, self.N_pois)  # x locations for all POIs
-        y = np.random.randint(0, self.size, self.N_pois)  # y locations for all POIs
+        x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
+        y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
         # Each one is a different type
-        n_agents = [self.N_agents] * self.N_pois
+        n_agents = [self.n_agents] * self.n_pois
 
         # these need to be less hard-coded
         # refresh_rate = [10 for i in range(self.N_pois)]         # refresh rate for all POIs
@@ -93,11 +95,12 @@ class DiscreteRoverDomain:
         obs_required = np.ndarray.tolist(poi_vals[:, 1])
         poi_type = np.ndarray.tolist(poi_vals[:, 2])
 
-        couple = [1 for _ in range(self.N_pois)]  # coupling requirement for all POIs
-        value = [1 for _ in range(self.N_pois)]  # Value of the POI
-        poi_idx = [i for i in range(self.N_pois)]
+        couple = [self.p.couple for _ in range(self.n_pois)]  # coupling requirement for all POIs
+        value = [self.p.value for _ in range(self.n_pois)]  # Value of the POI
+        obs_radius = [self.p.obs_radius for _ in range(self.n_pois)]  # Observation radius
+        poi_idx = [i for i in range(self.n_pois)]
         # return a list of the POI objects
-        return list(map(POI, x, y, value, refresh_rate, obs_required, couple, poi_type, n_agents, poi_idx))
+        return list(map(POI, x, y, value, refresh_rate, obs_required, couple, poi_type, n_agents, poi_idx, obs_radius))
 
     # reset environment to intial config
     def reset(self):
@@ -124,13 +127,13 @@ class DiscreteRoverDomain:
         :return:
         """
         # update all agents
-        for i in range(self.N_agents):
+        for i in range(self.n_agents):
             if actions[i]:
                 self.agents[i].poi = actions[i]  # agents set a new goal at every time step
                 self.agents[i].step()  # move agent toward POI
 
         # refresh all POIs and reset which agents are currently viewing
-        for j in range(self.N_pois):
+        for j in range(self.n_pois):
             self.pois[j].refresh()
             self.pois[j].viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
@@ -147,9 +150,9 @@ class DiscreteRoverDomain:
         G: global reward
         """
 
-        if len(policies) != self.N_agents:
+        if len(policies) != self.n_agents:
             raise ValueError(
-                'number of policies should equal number of agents in system (currently {})'.format(self.N_agents))
+                'number of policies should equal number of agents in system (currently {})'.format(self.n_agents))
 
         for i in range(len(policies)):
             self.agents[i].policy = policies[i]
@@ -237,11 +240,11 @@ class DiscreteRoverDomain:
         # tested this and it should be accurate
         # Info for POIs
         if a_or_p == 'p':
-            num_points = self.N_pois
+            num_points = self.n_pois
             points = self.pois
         # Info for other agents
         else:
-            num_points = self.N_agents - 1
+            num_points = self.n_agents - 1
             points = self.agents
         dist_arr = np.zeros(num_points)  # distance to each POI
         theta_arr = np.zeros(num_points)  # angle to each poi [-pi, pi]
@@ -343,13 +346,13 @@ class DiscreteRoverDomain:
         return g
 
     def D(self):
-        d = np.zeros(self.N_agents)
+        d = np.zeros(self.n_agents)
         for poi in self.pois:
             d = d + poi.D_vec * poi.value
         return d
 
     def Dpp(self):
-        d = np.zeros(self.N_agents)
+        d = np.zeros(self.n_agents)
         for poi in self.pois:
             d = d + poi.Dpp_vec * poi.value
         return d
@@ -361,7 +364,8 @@ if __name__ == "__main__":
     num_agents = 1
     num_pois = 1
     num_states = 2 ** (num_pois * 2)
-    env = DiscreteRoverDomain(num_agents, num_pois, poi_types)
+    param = Parameters()
+    env = DiscreteRoverDomain(param)
 
     for i in range(30):
 

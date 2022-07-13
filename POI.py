@@ -2,23 +2,25 @@ import numpy as np
 
 
 class POI:
-    def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type, n_agents, poi_idx,
+    def __init__(self, x, y, value, refresh_rate, obs_required, couple, poi_type, n_agents, poi_idx, obs_radius,
                  strong_coupling=False):
         self.class_type = 'POI'
         self.x = x                          # location - x
         self.y = y                          # location - y
         self.value = value                  # POI value -- this only makes sense for some reward structures
         self.refresh_rate = refresh_rate    # how often it is refreshed
-        self.refresh_idx = 0                # time steps since last refresh
-        self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.obs_required = obs_required    # number of observations required to fully observe the POI
-        self.obs_radius = 1                 # observation radius
         self.couple = couple                # coupling requirement
         self.poi_type = poi_type            # type
         self.poi_idx = poi_idx              # ID for each POI
+        self.strong_coupling = strong_coupling      # 1: simultaneous observation,  0: observations within window of time
+        self.obs_radius = obs_radius        # observation radius
+
+        self.refresh_idx = 0                # time steps since last refresh
+        self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.successes = 0                  # number of times it has successfully been captured
         self.observed = 0                   # 0: not observed during this refresh cycle | 1: observed during this cycle
-        self.strong_coupling = strong_coupling      # 1: simultaneous observation,  0: observations within window of time
+
         self.D_vec = np.zeros(n_agents)     # difference rewards
         self.Dpp_vec = np.zeros(n_agents)   # D++ rewards
         self.viewed = []                    # list of all agents that viewed in refresh window
