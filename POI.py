@@ -1,4 +1,5 @@
 import numpy as np
+from math import cos, sin
 
 
 class POI:
@@ -83,4 +84,19 @@ class POI:
             self.viewed = []
 
 
+class FalsePOI:
+    def __init__(self, ag_x, ag_y, theta, bounds):
+        self.class_type = "Region"
+        self.x = ag_x + (1.2 * cos(theta))
+        self.y = ag_y + (1.2 * sin(theta))
+        self.check_bounds(bounds)
 
+    def check_bounds(self, bounds):
+        if self.x < 0:
+            self.x = 0
+        elif self.x > bounds:
+            self.x = bounds
+        if self.y < 0:
+            self.y = 0
+        elif self.y > bounds:
+            self.y = bounds

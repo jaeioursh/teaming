@@ -3,7 +3,7 @@ from math import pi, sqrt, atan2
 import matplotlib.pyplot as plt
 
 from teaming.Agent import Agent
-from teaming.POI import POI
+from teaming.POI import POI, FalsePOI
 from teaming.parameters00 import Parameters
 
 
@@ -63,7 +63,7 @@ class DiscreteRoverDomain:
         idxs = [i for i in range(self.n_agents)]
         # return an array of Agent objects at the specified locations
         # Agent initialization: x, y, idx, capabilties, type
-        return [Agent(x, y, idx, np.random.random(self.n_pois), np.random.randint(0, self.n_agent_types))
+        return [Agent(x, y, idx, np.random.random(self.n_pois), np.random.randint(0, self.n_agent_types), self.p)
                 for x, y, idx in zip(X, Y, idxs)]
 
     # generate list of POIs
@@ -129,6 +129,7 @@ class DiscreteRoverDomain:
         # update all agents
         for i in range(self.n_agents):
             if actions[i]:
+
                 self.agents[i].poi = actions[i]  # agents set a new goal at every time step
                 self.agents[i].step()  # move agent toward POI
 
@@ -166,7 +167,6 @@ class DiscreteRoverDomain:
                 # act_detensorfied = np.argmax(
                 #     act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
                 act = self.action(agent, act_array)
-                # TODO: add check to make sure action is valid
                 actions.append(act)  # save the action to list of actions
             self.step(actions)
             self.avg_false.append(actions.count(False) / len(actions))
@@ -244,7 +244,7 @@ class DiscreteRoverDomain:
             points = self.pois
         # Info for other agents
         else:
-            num_points = self.n_agents - 1
+            num_points = self.n_agents
             points = self.agents
         dist_arr = np.zeros(num_points)  # distance to each POI
         theta_arr = np.zeros(num_points)  # angle to each poi [-pi, pi]
@@ -290,34 +290,45 @@ class DiscreteRoverDomain:
 
         # Choose a random action a small percent of the time in order to get out of being stuck
         # If the agent policy has chosen not to move and the world isn't changing, the agent will never move.
-        if np.random.random() < self.rand_action_rate:
-            nn_max_idx = np.random.randint(0, len(nn_output))
-        else:
-            nn_max_idx = np.argmax(nn_output)
+        # if np.random.random() < self.rand_action_rate:
+        #     nn_max_idx = np.random.randint(0, len(nn_output))
+        # else:
+        nn_max_idx = np.argmax(nn_output)
 
         # first (n_regions) number of outputs represent POIs
         if nn_max_idx < self.n_regions:
             # Get the index of the max value (aka min distance) POI in that region of any type
             state_idx = np.argmax(agent.state[nn_max_idx][:self.n_poi_types])
+
             if np.max(agent.state[nn_max_idx][state_idx]) == -1:
                 # Flag that there's nothing of that type in that region
-                return False
+                theta = (self.sensor_bins[nn_max_idx] + self.sensor_bins[nn_max_idx+1]) / 2
+                # Create a dummy "POI" that has x & y values for the agent to move toward
+                region = FalsePOI(agent.x, agent.y, theta, self.size)
+                return region
+
             # Find and return the closest POI in that region
             poi_idx = int(agent.state_idx[nn_max_idx][state_idx])
             return self.pois[poi_idx]
 
         # Second (n_regions) number of outputs represent agents
         elif nn_max_idx < self.n_regions * 2:
+
             if not self.with_agents:
                 return False
 
-            nn_max_idx -= self.n_regions
             # Need to get the region number (subtract n_reigons since this is the second set of them)
+            nn_max_idx -= self.n_regions
             # Get the index the max value (aka min distance) set of agents in that region of any type
             state_idx = np.argmax(agent.state[nn_max_idx][self.n_poi_types:]) + self.n_poi_types
+
             if np.max(agent.state[nn_max_idx][state_idx]) == -1:
                 # Flag that there's nothing of that type in that region
-                return False
+                theta = self.sensor_bins[nn_max_idx] + self.sensor_bins[nn_max_idx+1] / 2
+                # Create a dummy "POI" that has x & y values for the agent to move toward
+                region = FalsePOI(agent.x, agent.y, theta, self.size)
+                return region
+
             # Find and return the closest agent in that region
             # See not above - closest is much more vague when you're doing sum of inverse distances
             ag_idx = int(agent.state_idx[nn_max_idx][state_idx])
