@@ -48,7 +48,7 @@ class DiscreteRoverDomain:
         plt.scatter(XY[:, 0], XY[:, 1], marker="o")
         plt.ylim([0, self.size])
         plt.xlim([0, self.size])
-        plt.pause(0.1)
+        plt.savefig("world.png")
 
     # generate list of agents
     def gen_agents(self):
@@ -138,7 +138,7 @@ class DiscreteRoverDomain:
             self.pois[j].refresh()
             self.pois[j].viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
-    def run_sim(self, policies):
+    def run_sim(self, policies, multi_g=False):
         """
         This is set up to run one epoch for the number of time steps specified in the class definition.
         Tests a set of NN policies, one for each agent.
@@ -172,6 +172,8 @@ class DiscreteRoverDomain:
             self.avg_false.append(actions.count(False) / len(actions))
 
         # print("percent steps taken:", check / (self.time_steps * self.N_agents))
+        if multi_g:
+            return self.G(), self.multiG(), np.mean(self.avg_false)
         return self.G(), np.mean(self.avg_false)
 
     def state(self, agent):
@@ -348,6 +350,12 @@ class DiscreteRoverDomain:
             return (self.n_regions * 2) + 1
         else:
             return self.n_regions + 1
+
+    def multiG(self):
+        g = np.zeros(self.n_poi_types)
+        for poi in self.pois:
+            g[poi.poi_type] += poi.successes * poi.value
+        return g
 
     # returns global reward based on POI values
     def G(self):

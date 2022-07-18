@@ -21,6 +21,7 @@ class POI:
         self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.successes = 0                  # number of times it has successfully been captured
         self.observed = 0                   # 0: not observed during this refresh cycle | 1: observed during this cycle
+        self.claimed = False
 
         self.D_vec = np.zeros(n_agents)     # difference rewards
         self.Dpp_vec = np.zeros(n_agents)   # D++ rewards
@@ -82,6 +83,7 @@ class POI:
             self.refresh_idx = 0  # reset the time steps
             self.observed = 0
             self.viewed = []
+            self.claimed = False
 
 
 class FalsePOI:
