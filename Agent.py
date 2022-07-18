@@ -18,8 +18,8 @@ class Agent:
         self.type = type            # Agent type - TODO: this should not be hard-coded
         self.num_stationary = 0
         self.poi = None             # variable to store desired goal
-        # self.capabilities = cap     # randomly initialize agent's capability of viewing each POI
-        self.capabilities = np.ones_like(cap)       # Agents are equally good at finding all POIs
+        self.capabilities = cap     # randomly initialize agent's capability of viewing each POI
+        #self.capabilities = np.ones_like(cap)       # Agents are equally good at finding all POIs
         self.policy = None
         self.state = None           # Current state
         self.state_idx = None       # Metadata about the state
