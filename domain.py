@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from teaming.Agent import Agent
 from teaming.POI import POI, FalsePOI
-from teaming.parameters00 import Parameters
+
 
 
 class DiscreteRoverDomain:
@@ -378,6 +378,7 @@ class DiscreteRoverDomain:
 
 
 if __name__ == "__main__":
+    from teaming.parameters00 import Parameters
     np.random.seed(0)
     poi_types = [[100, 1, 0]]  # , [10, 3, 1], [50, 5, 2]]
     num_agents = 1
