@@ -226,6 +226,9 @@ class DiscreteRoverDomain:
         agent.state = state
         agent.state_idx = state_idx
 
+    def joint_state(self):
+        return [self.state(agent) for agent in self.agents]
+
     def _get_quadrant_state_info(self, agent, a_or_p='p'):
         """
         Get 'quadrant' state information for all other points or agents
