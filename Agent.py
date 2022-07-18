@@ -15,13 +15,12 @@ class Agent:
         self.prior_x = self.x
         self.prior_y = self.y
         self.p = p
+        self.type = type            # Agent type - TODO: this should not be hard-coded
         self.num_stationary = 0
-        self.poi_type = None        #
         self.poi = None             # variable to store desired goal
         # self.capabilities = cap     # randomly initialize agent's capability of viewing each POI
         self.capabilities = np.ones_like(cap)       # Agents are equally good at finding all POIs
         self.policy = None
-        self.type = type            # Agent type - TODO: this should not be hard-coded
         self.state = None           # Current state
         self.state_idx = None       # Metadata about the state
 
@@ -32,6 +31,9 @@ class Agent:
         self.policy = None
         self.state = None
         self.state_idx = None
+        self.prior_y = 0
+        self.prior_x = 0
+        self.num_stationary = 0
 
     def step(self):
         if self.poi:
@@ -60,18 +62,18 @@ class Agent:
             else:
                 self.y += (Y-self.y)
                 self.x += (X-self.x)
-
-        # If the agent did not move, increment the stationary count
-        if self.prior_y == self.y and self.prior_x == self.x:
-            self.num_stationary += 1
-        else:
-            self.num_stationary = 0
-
-        # If the agent hasn't moved in 5 time steps, take a random action
-        if self.num_stationary >= 5:
-            self.poi = FalsePOI(self.x, self.y, uniform(-pi, pi), self.p.size)
-            self.num_stationary = 0
-            self.move()
+        #
+        # # If the agent did not move, increment the stationary count
+        # if self.prior_y == self.y and self.prior_x == self.x:
+        #     self.num_stationary += 1
+        # else:
+        #     self.num_stationary = 0
+        #
+        # # If the agent hasn't moved in 5 time steps, take a random action
+        # if self.num_stationary >= 5:
+        #     self.poi = FalsePOI(self.x, self.y, uniform(-pi, pi), self.p.size)
+        #     self.num_stationary = 0
+        #     self.move()
 
 
 
@@ -82,7 +84,7 @@ class Agent:
         :return:
         """
 
-        if self.poi.class_type == 'Agent' or "Region":
+        if self.poi.class_type == 'Agent' or self.poi.class_type == "Region":
             return 0
         if abs(self.poi.x - self.x) <= self.poi.obs_radius and abs(self.poi.y - self.y) <= self.poi.obs_radius:
             return 1
