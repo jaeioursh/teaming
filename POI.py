@@ -35,12 +35,14 @@ class POI:
         :return:
         """
         self.refresh_idx = 0
+        self.curr_rew = 0
         self.successes = 0
+        self.observed = 0
         self.D_vec[:] = 0
         self.Dpp_vec[:] = 0
         self.viewed = []
         self.viewing = []
-        self.curr_rew = 0
+        self.history = []
 
     def refresh(self):
         self.refresh_idx += 1  # increase number of time steps since last refresh
@@ -75,10 +77,12 @@ class POI:
             else:
                 if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
                     capabilities = [agent.capabilities[self.poi_type] for agent in self.viewed]
+                    idxs = [agent.idx for agent in self.viewed]
                     g = min(capabilities)
                     self.successes += g
                     self.observed = 1
-                    # self.viewed = []  # reset the agents that have viewed
+                    d_g = [g - (g - agent.capabilities[self.poi_type]) for agent in self.viewed]
+                    self.D_vec[idxs] += np.array(d_g)
         if self.refresh_idx == self.refresh_rate:  # if it has hit the refresh
             self.refresh_idx = 0  # reset the time steps
             self.observed = 0
