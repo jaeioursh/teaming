@@ -75,26 +75,39 @@ class POI:
                         dpp = [g / n_needed] * len(self.viewing)
                         self.Dpp_vec[idxs] += np.array(dpp)
             else:
-                if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
-                    capabilities = [agent.capabilities[self.poi_type] for agent in self.viewed]
-                    idxs = [agent.idx for agent in self.viewed]
-                    g = min(capabilities)
-                    self.successes += g
+                if len(self.viewed) >= self.obs_required:
+                    # This is necessary for the greedy base comparison policy
                     self.observed = 1
-                    d_g = [g - (g - agent.capabilities[self.poi_type]) for agent in self.viewed]
-                    self.D_vec[idxs] += np.array(d_g)
         if self.refresh_idx == self.refresh_rate:  # if it has hit the refresh
+            if not self.strong_coupling:
+                if len(self.viewed) >= self.obs_required:  # if weak coupling, check all the agents that viewed this refresh cycle
+                        # NOTE: This currently assumes agents have uniform (all ones) capabilities.
+                        # If you need to use this with heterogeneous agents, it will need to be amended.
+                        self.successes += 1
+
+                        idxs = [agent.idx for agent in self.viewed]
+                        unique = np.unique(idxs)
+                        ag_d = np.zeros_like(unique)
+                        for i, ag in enumerate(unique):
+                            ag_d[i] = 0
+                            temp_arr = [idx for idx in idxs if idx != ag]
+                            if len(temp_arr) < self.obs_required:
+                                # If the observation is not met without this agent, then it gets the full value of the POI
+                                ag_d[i] = self.value
+                        self.D_vec[unique] += np.array(ag_d)
+
             self.refresh_idx = 0  # reset the time steps
             self.observed = 0
             self.viewed = []
             self.claimed = False
 
 
+
 class FalsePOI:
     def __init__(self, ag_x, ag_y, theta, bounds):
         self.class_type = "Region"
-        self.x = ag_x + (1.2 * cos(theta))
-        self.y = ag_y + (1.2 * sin(theta))
+        self.x = ag_x + (1.01 * cos(theta))
+        self.y = ag_y + (1.01 * sin(theta))
         self.check_bounds(bounds)
 
     def check_bounds(self, bounds):

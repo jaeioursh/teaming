@@ -1,6 +1,7 @@
 import numpy as np
 from math import pi, sqrt, atan2
 import matplotlib.pyplot as plt
+from os import path, getcwd
 
 from teaming.Agent import Agent
 from teaming.POI import POI, FalsePOI
@@ -25,6 +26,7 @@ class DiscreteRoverDomain:
         self.avg_false = []                             # How many times agents choose null actions
         self.theoretical_max_g = 0                      # Maximum G if all POIs were perfectly captured
         self.vis = 0                                    # To visualize or not to visualize
+        self.visualize = False
         self.poi_options = np.array(p.poi_options)      # options for each POI - [refresh rate, number of observations required, ID]
         self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
         self.pois = self.gen_pois()                     # generate POIs
@@ -33,7 +35,7 @@ class DiscreteRoverDomain:
 
         self.reset()                                # reset the system
 
-    def draw(self):
+    def draw(self, t):
         if self.vis == 0:
             self.vis = 1
             plt.ion()
@@ -41,16 +43,21 @@ class DiscreteRoverDomain:
         plt.clf()
         xy = np.array([[poi.x, poi.y] for poi in self.pois])
         XY = np.array([[agent.x, agent.y] for agent in self.agents]) + self.agent_offset
-        alpha = [1 - poi.refresh_idx / poi.refresh_rate for poi in self.pois]
+        # alpha = [1 - poi.refresh_idx / poi.refresh_rate for poi in self.pois]
+        alpha = [poi.poi_type for poi in self.pois]
         sizes = [poi.value * 20 + 10 for poi in self.pois]
 
         plt.scatter(xy[:, 0], xy[:, 1], marker="s", s=sizes, c=alpha, vmin=0, vmax=1)
         plt.scatter(XY[:, 0], XY[:, 1], marker="o")
         plt.ylim([0, self.size])
         plt.xlim([0, self.size])
-        plt.savefig("world.png")
 
-    # generate list of agents
+        # plt.show()
+        # sleep(0.1)
+        pth = path.join(getcwd(), 'rollouts', self.p.fname_prepend + 't{:02d}_{}.png'.format(self.p.trial_num, t))
+
+        plt.savefig(pth)
+
     def gen_agents(self):
         """
         Generates a list of agents
@@ -66,7 +73,6 @@ class DiscreteRoverDomain:
         return [Agent(x, y, idx, np.random.random(self.n_pois), np.random.randint(0, self.n_agent_types), self.p)
                 for x, y, idx in zip(X, Y, idxs)]
 
-    # generate list of POIs
     def gen_pois(self):
         """
         Generates a list of random POIs
@@ -78,14 +84,11 @@ class DiscreteRoverDomain:
         poi_vals = self.poi_options[randints, :]  # array of values from the POI options for each POI in the world
         x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
         y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
+
+        # x = [2, 8]
+        # y = [2, 8]
         # Each one is a different type
         n_agents = [self.n_agents] * self.n_pois
-
-        # these need to be less hard-coded
-        # refresh_rate = [10 for i in range(self.N_pois)]         # refresh rate for all POIs
-        # obs_required = [2 for i in range(self.N_pois)]          # number of observations required
-        # poi_type = [i for i in range(self.N_pois)]              # Each one is a different type
-        # value = poi_type                                        # Value of the POI
 
         num_refreshes = np.ceil(self.time_steps / poi_vals[:, 0]) # how many times each POI can be captured
         self.theoretical_max_g = sum(num_refreshes)
@@ -93,16 +96,28 @@ class DiscreteRoverDomain:
 
         refresh_rate = np.ndarray.tolist(poi_vals[:, 0])
         obs_required = np.ndarray.tolist(poi_vals[:, 1])
-        poi_type = np.ndarray.tolist(poi_vals[:, 2])
+        value = np.ndarray.tolist(poi_vals[:, 2])  # Use this if you want to set the values of each POI type individually
+        # value = [self.p.value for _ in range(self.n_pois)]  # Use this if you want all values to be the same
 
         couple = [self.p.couple for _ in range(self.n_pois)]  # coupling requirement for all POIs
-        value = [self.p.value for _ in range(self.n_pois)]  # Value of the POI
         obs_radius = [self.p.obs_radius for _ in range(self.n_pois)]  # Observation radius
         poi_idx = [i for i in range(self.n_pois)]
         # return a list of the POI objects
-        return list(map(POI, x, y, value, refresh_rate, obs_required, couple, poi_type, n_agents, poi_idx, obs_radius))
+        return list(map(POI, x, y, value, refresh_rate, obs_required, couple, randints, n_agents, poi_idx, obs_radius))
 
-    # reset environment to intial config
+    def move_pois(self):
+        x = np.random.normal(0, 0.1, self.n_pois)  # x movement for all POIs
+        y = np.random.normal(0, 0.1, self.n_pois)  # y movement for all POIs
+        for i, poi in enumerate(self.pois):
+            poi.x += x[i]
+            poi.y += y[i]
+            dims = [poi.x, poi.y]
+            for d in dims:
+                if d < 0:
+                    d = 1
+                elif d > self.size:
+                    d = self.size - 1
+
     def reset(self):
         """
         Reset environment to initial configuration
@@ -119,7 +134,6 @@ class DiscreteRoverDomain:
         self.agents = self.gen_agents()
         self.avg_false = []
 
-    # perform one state transition given a list of actions for each agent
     def step(self, actions):
         """
         perform one state transition given a list of actions for each agent
@@ -157,21 +171,26 @@ class DiscreteRoverDomain:
 
         for i in range(len(policies)):
             self.agents[i].policy = policies[i]
-
-        for _ in range(self.time_steps):
+        all_xy = []
+        for t in range(self.time_steps):
             actions = []
             for agent in self.agents:
                 self.state(agent)  # gets the state
                 st = agent.state
                 act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
-                # act_detensorfied = np.argmax(
-                #     act.detach().numpy())  # converts tensor to numpy, then finds the index of the max value
                 act = self.action(agent, act_array)
                 actions.append(act)  # save the action to list of actions
             self.step(actions)
-            self.avg_false.append(actions.count(False) / len(actions))
 
+            self.avg_false.append(actions.count(False) / len(actions))
+            xy_vals = np.array([[ag.x, ag.y] for ag in self.agents]).round(2)
+            all_xy.append(xy_vals)
+            if self.visualize:
+                self.draw(t)
         # print("percent steps taken:", check / (self.time_steps * self.N_agents))
+        # all_xy = np.array(all_xy)
+        # for i in range(self.n_agents):
+        #     print(i, all_xy[:, i])
         if multi_g:
             return self.G(), self.multiG(), np.mean(self.avg_false)
         return self.G(), np.mean(self.avg_false)
@@ -329,7 +348,7 @@ class DiscreteRoverDomain:
 
             if np.max(agent.state[nn_max_idx][state_idx]) == -1:
                 # Flag that there's nothing of that type in that region
-                theta = self.sensor_bins[nn_max_idx] + self.sensor_bins[nn_max_idx+1] / 2
+                theta = (self.sensor_bins[nn_max_idx] + self.sensor_bins[nn_max_idx+1]) / 2
                 # Create a dummy "POI" that has x & y values for the agent to move toward
                 region = FalsePOI(agent.x, agent.y, theta, self.size)
                 return region

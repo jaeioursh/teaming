@@ -42,6 +42,7 @@ class Agent:
                 poi = self.poi              # get the POI
                 poi.viewing.append(self)    # add the agent to current agents viewing the POI
                 poi.viewed.append(self)
+                self.poi.claimed = False
                 self.poi = None
 
     # moves agent 1-unit towards the POI
@@ -62,20 +63,6 @@ class Agent:
             else:
                 self.y += (Y-self.y)
                 self.x += (X-self.x)
-        #
-        # # If the agent did not move, increment the stationary count
-        # if self.prior_y == self.y and self.prior_x == self.x:
-        #     self.num_stationary += 1
-        # else:
-        #     self.num_stationary = 0
-        #
-        # # If the agent hasn't moved in 5 time steps, take a random action
-        # if self.num_stationary >= 5:
-        #     self.poi = FalsePOI(self.x, self.y, uniform(-pi, pi), self.p.size)
-        #     self.num_stationary = 0
-        #     self.move()
-
-
 
     # boolean to check if agent is successful in observing desired POI
     def observe(self):
