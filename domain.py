@@ -5,7 +5,7 @@ from os import path, getcwd
 
 from teaming.Agent import Agent
 from teaming.POI import POI, FalsePOI
-from time import sleep
+from time import sleep, time
 
 
 
@@ -93,7 +93,6 @@ class DiscreteRoverDomain:
 
         num_refreshes = np.ceil(self.time_steps / poi_vals[:, 0]) # how many times each POI can be captured
         self.theoretical_max_g = sum(num_refreshes)
-        # print(self.theoretical_max_g)
 
         refresh_rate = np.ndarray.tolist(poi_vals[:, 0])
         obs_required = np.ndarray.tolist(poi_vals[:, 1])
@@ -165,14 +164,11 @@ class DiscreteRoverDomain:
         -------
         G: global reward
         """
-
         if len(policies) != self.n_agents:
             raise ValueError(
                 'number of policies should equal number of agents in system (currently {})'.format(self.n_agents))
-
         for i in range(len(policies)):
             self.agents[i].policy = policies[i]
-        all_xy = []
         for t in range(self.time_steps):
             actions = []
             for agent in self.agents:
@@ -181,17 +177,12 @@ class DiscreteRoverDomain:
                 act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
                 act = self.action(agent, act_array)
                 actions.append(act)  # save the action to list of actions
-            self.step(actions)
 
+            self.step(actions)
             self.avg_false.append(actions.count(False) / len(actions))
-            xy_vals = np.array([[ag.x, ag.y] for ag in self.agents]).round(2)
-            all_xy.append(xy_vals)
             if self.visualize:
                 self.draw(t)
-        # print("percent steps taken:", check / (self.time_steps * self.N_agents))
-        # all_xy = np.array(all_xy)
-        # for i in range(self.n_agents):
-        #     print(i, all_xy[:, i])
+
         if multi_g:
             return self.G(), self.multiG(), np.mean(self.avg_false)
         return self.G(), np.mean(self.avg_false)
@@ -202,7 +193,6 @@ class DiscreteRoverDomain:
         :param agent:
         :return state, state_idx:
         """
-
         # Number of sensor bins as rows, poi types plus agents types for columns
         n_agent_types = self.n_agent_types
         if not self.with_agents:
@@ -211,8 +201,8 @@ class DiscreteRoverDomain:
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
         ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
-
         # Determine closest POI in each region
+
         for i in range(len(self.pois)):
             d = poi_dist[i]
             if d == -1:         # If the POI is out of range, skip it
