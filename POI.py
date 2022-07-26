@@ -99,8 +99,6 @@ class POI:
             self.refresh_idx = 0  # reset the time steps
             self.observed = 0
             self.viewed = []
-            self.claimed = False
-
 
 
 class FalsePOI:
