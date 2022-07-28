@@ -80,9 +80,18 @@ class DiscreteRoverDomain:
         :return: list of POI objects
         """
         num_poi_types = np.shape(self.poi_options)[0]
-        randints = np.random.randint(num_poi_types,
-                                     size=self.n_pois)  # get an array of random integers - integers represent the POI type, one for each POI in the world
-        poi_vals = self.poi_options[randints, :]  # array of values from the POI options for each POI in the world
+        n_each_type = int(np.floor(self.n_pois / num_poi_types))
+
+        # This block makes it so POIs are evenly distributed between types
+        poi_type = []
+        for i in range(num_poi_types):
+            poi_type += [i] * n_each_type
+        while len(poi_type) != self.n_pois:
+            poi_type += [np.random.randint(num_poi_types)]
+        # Instead of randomly assigned like the original line below:
+        # poi_type = np.random.randint(num_poi_types,
+        #                              size=self.n_pois)  # integers represent the POI type, one for each POI in the world
+        poi_vals = self.poi_options[poi_type, :]  # array of values from the POI options for each POI in the world
         x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
         y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
 
@@ -91,19 +100,19 @@ class DiscreteRoverDomain:
         # Each one is a different type
         n_agents = [self.n_agents] * self.n_pois
 
-        num_refreshes = np.ceil(self.time_steps / poi_vals[:, 0]) # how many times each POI can be captured
-        self.theoretical_max_g = sum(num_refreshes)
-
-        refresh_rate = np.ndarray.tolist(poi_vals[:, 0])
-        obs_required = np.ndarray.tolist(poi_vals[:, 1])
-        value = np.ndarray.tolist(poi_vals[:, 2])  # Use this if you want to set the values of each POI type individually
+        time_active = np.ndarray.tolist(poi_vals[:, 0])
+        n_times_active = np.array(poi_vals[:, 1])
+        value = np.ndarray.tolist(poi_vals[:, 3])  # Use this if you want to set the values of each POI type individually
+        self.theoretical_max_g = sum(n_times_active * value)
+        slot_size = np.ndarray.tolist(np.floor(self.time_steps / n_times_active))      # should calculate equal length time slots
+        obs_required = np.ndarray.tolist(poi_vals[:, 2])
         # value = [self.p.value for _ in range(self.n_pois)]  # Use this if you want all values to be the same
 
         couple = [self.p.couple for _ in range(self.n_pois)]  # coupling requirement for all POIs
         obs_radius = [self.p.obs_radius for _ in range(self.n_pois)]  # Observation radius
         poi_idx = [i for i in range(self.n_pois)]
         # return a list of the POI objects
-        return list(map(POI, x, y, value, refresh_rate, obs_required, couple, randints, n_agents, poi_idx, obs_radius))
+        return list(map(POI, x, y, value, time_active, np.ndarray.tolist(n_times_active), slot_size, obs_required, couple, poi_type, n_agents, poi_idx, obs_radius))
 
     def move_pois(self):
         x = np.random.normal(0, 0.1, self.n_pois)  # x movement for all POIs
@@ -267,6 +276,8 @@ class DiscreteRoverDomain:
             # Compare each point (POI or other agent) to position of current agent
             # Check to make sure it is not the same agent happens later (ignore for now for indexing reasons)
             point = points[i]
+            if not point.active:
+                continue
             x = point.x - agent.x
             y = point.y - agent.y
             if x == 0 and y == 0:   # avoid divide by zero case

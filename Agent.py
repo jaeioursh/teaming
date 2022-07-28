@@ -23,6 +23,7 @@ class Agent:
         self.policy = None
         self.state = None           # Current state
         self.state_idx = None       # Metadata about the state
+        self.active = True
 
     def reset(self):
         self.x = self._x            # magically teleport to initial location
