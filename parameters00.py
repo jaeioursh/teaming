@@ -11,7 +11,7 @@ class Parameters:
     n_agents = 1
     n_agent_types = 1
     n_pois = 10
-    poi_options = [[100, 1, 1], [5, 2, 1], [1, 1, 1]]  # [refresh rate, num_observations, value]
+    poi_options = [[60, 1, 1, 1], [30, 2, 1, 1]]  # time active, number of times active, observation_req, value
     with_agents = True
     size = 30
     time_steps = 100

@@ -291,6 +291,7 @@ class DiscreteRoverDomain:
                     inv_d = -1
             dist_arr[i] = inv_d
             theta_arr[i] = atan2(y, x)  # angle to each POI
+        #TODO: Try numpy.searchsorted()
         quadrants = np.digitize(theta_arr, bins=self.sensor_bins) - 1  # which quadrant / octant each POI is in relative to the GLOBAL frame
         return dist_arr, quadrants
 
