@@ -53,7 +53,7 @@ class POI:
             self.active = False
 
     def setup_times(self, time, num_times, slots):
-        for i in range(num_times):
+        for i in range(int(num_times)):
             if time == slots:
                 beginning = i * time
                 end = ((i + 1) * time) - 1
@@ -71,16 +71,12 @@ class POI:
         if self.strong_coupling:
             self.refresh_strong()
         else:
-            if len(self.viewed) >= self.obs_required:  # if weak coupling, check all the agents that viewed this refresh cycle
-                # This is necessary for the greedy base comparison policy
-                self.observed = 1
             self.refresh_weak()
 
-            self.observed = 0
-            self.viewed = []
-            self.claimed = 0
-
     def refresh_weak(self):
+        if len(self.viewed) >= self.obs_required:  # if weak coupling, check all the agents that viewed this refresh cycle
+            # This is necessary for the greedy base comparison policy
+            self.observed = 1
         for [st, end] in self.times_active:
             if self.curr_time == end:  # if it has hit the refresh
                 self.active = False
@@ -99,6 +95,9 @@ class POI:
                             # If the observation is not met without this agent, then it gets the full value of the POI
                             ag_d[i] = 1
                     self.D_vec[unique] += np.array(ag_d)
+                self.observed = 0
+                self.viewed = []
+                self.claimed = 0
             if self.curr_time == st:
                 self.active = True
 

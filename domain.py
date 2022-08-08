@@ -291,8 +291,13 @@ class DiscreteRoverDomain:
                     inv_d = -1
             dist_arr[i] = inv_d
             theta_arr[i] = atan2(y, x)  # angle to each POI
-        #TODO: Try numpy.searchsorted()
-        quadrants = np.digitize(theta_arr, bins=self.sensor_bins) - 1  # which quadrant / octant each POI is in relative to the GLOBAL frame
+        # Digitize is SLOOOOOOWWWWWWWWW
+        # dumb_quadrants = np.digitize(theta_arr, bins=self.sensor_bins) - 1  # which quadrant / octant each POI is in relative to the GLOBAL frame
+        quadrants = self.n_regions - np.searchsorted(-self.sensor_bins, theta_arr)
+        # If it's perfectly on the border between quads 0 & 7, it will cause index issues
+        for x in range(len(quadrants)):
+            if quadrants[x] == 8:
+                quadrants[x] = 7
         return dist_arr, quadrants
 
     def state_size(self):
