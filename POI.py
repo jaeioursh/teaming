@@ -15,15 +15,16 @@ class POI:
         self.poi_idx = poi_idx              # ID for each POI
         self.strong_coupling = strong_coupling      # 1: simultaneous observation,  0: observations within window of time
         self.obs_radius = obs_radius        # observation radius
+        self.time_active = time_active
         self.times_active = []
         self.active = False
 
+        self.percent_complete = 0
         self.curr_time = 0                # time steps since last refresh
         self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.successes = 0                  # number of times it has successfully been captured
         self.observed = 0                   # 0: not observed during this refresh cycle | 1: observed during this cycle
         self.claimed = 0
-
         self.D_vec = np.zeros(n_agents)     # difference rewards
         self.Dpp_vec = np.zeros(n_agents)   # D++ rewards
         self.viewed = []                    # list of all agents that viewed in refresh window
@@ -68,6 +69,7 @@ class POI:
 
     def refresh(self):
         self.curr_time += 1  # increase number of time steps since last refresh
+        self.percent_complete = self.curr_time / self.time_active  # How far in to the active time am I
         if self.strong_coupling:
             self.refresh_strong()
         else:

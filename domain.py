@@ -206,7 +206,7 @@ class DiscreteRoverDomain:
         n_agent_types = self.n_agent_types
         if not self.with_agents:
             n_agent_types = 0
-        state = np.zeros((self.n_regions, len(self.poi_options) + n_agent_types)) - 1
+        state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
         ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
@@ -216,12 +216,14 @@ class DiscreteRoverDomain:
             d = poi_dist[i]
             if d == -1:         # If the POI is out of range, skip it
                 continue        # -1 was used as the arbitrary flag to indicate this POI is out of sensor range
-            quad = poi_quads[i]
+            quad = poi_quads[i]  # Distance portion of the state
             poi_type = self.pois[i].poi_type
+            type_2 = poi_type + len(self.poi_options)  # completeness / timing state
             # d is inverse distance, so this finds the closest one
             if d > state[quad, poi_type]:
                 state[quad, poi_type] = d
                 state_idx[quad, poi_type] = i
+                state[quad, type_2] = self.pois[i].percent_complete
 
         # Determine closest agent in each region and sum inverse distances of all agents in each quadrant
         curr_best = np.zeros(self.n_regions) - 1
@@ -308,7 +310,7 @@ class DiscreteRoverDomain:
         state size
         """
         if self.with_agents:
-            return self.n_regions * (self.n_poi_types + self.n_agent_types)
+            return self.n_regions * (self.n_poi_types*2 + self.n_agent_types)
         else:
             return self.n_regions * self.n_poi_types
 
