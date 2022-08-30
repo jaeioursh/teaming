@@ -15,12 +15,13 @@ class POI:
         self.poi_idx = poi_idx              # ID for each POI
         self.strong_coupling = strong_coupling      # 1: simultaneous observation,  0: observations within window of time
         self.obs_radius = obs_radius        # observation radius
-        self.time_active = time_active
+        self.tot_time_active = time_active
         self.times_active = []
         self.active = False
 
-        self.percent_complete = 0
-        self.curr_time = 0                # time steps since last refresh
+        self.percent_complete = -1
+        self.curr_time = 0                  # time steps since beginning of episode
+        self.curr_active_time = 0           # time steps it has been active
         self.curr_rew = 0                   # Current reward will allow the agents to get a local reward when this is observed
         self.successes = 0                  # number of times it has successfully been captured
         self.observed = 0                   # 0: not observed during this refresh cycle | 1: observed during this cycle
@@ -48,8 +49,11 @@ class POI:
         self.viewing = []
         self.history = []
         self.claimed = 0
+        self.percent_complete = 0
+        self.curr_active_time = 0
         if self.times_active[0][0] == 0:
             self.active = True
+            self.percent_complete = 0
         else:
             self.active = False
 
@@ -57,23 +61,28 @@ class POI:
         for i in range(int(num_times)):
             if time == slots:
                 beginning = i * time
-                end = ((i + 1) * time) - 1
+                end = ((i + 1) * time)
             else:
                 slot0 = i * slots
                 slot1 = ((i+1) * slots) - time
                 beginning = np.random.randint(slot0, slot1 + 1)
-                end = beginning + time - 1
+                end = beginning + time
             if beginning == 0:
                 self.active = True
             self.times_active.append([beginning, end])
 
     def refresh(self):
         self.curr_time += 1  # increase number of time steps since last refresh
-        self.percent_complete = self.curr_time / self.time_active  # How far in to the active time am I
         if self.strong_coupling:
             self.refresh_strong()
         else:
             self.refresh_weak()
+        if self.active:
+            self.curr_active_time += 1
+            self.percent_complete = self.curr_active_time / self.tot_time_active  # How far in to the active time am I
+        else:
+            self.percent_complete = -1
+
 
     def refresh_weak(self):
         if len(self.viewed) >= self.obs_required:  # if weak coupling, check all the agents that viewed this refresh cycle

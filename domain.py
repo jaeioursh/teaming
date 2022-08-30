@@ -193,7 +193,7 @@ class DiscreteRoverDomain:
                 actions.append(act)  # save the action to list of actions
 
             self.step(actions)
-            self.avg_false.append(actions.count(False) / len(actions))
+            # self.avg_false.append(actions.count(False) / len(actions))
             if self.visualize:
                 self.draw(t)
         return self.G(), self.D()
@@ -206,8 +206,6 @@ class DiscreteRoverDomain:
         """
         # Number of sensor bins as rows, poi types plus agents types for columns
         n_agent_types = self.n_agent_types
-        if not self.with_agents:
-            n_agent_types = 0
         if use_time:
             state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
         else:
@@ -285,6 +283,7 @@ class DiscreteRoverDomain:
             # Check to make sure it is not the same agent happens later (ignore for now for indexing reasons)
             point = points[i]
             if not point.active:
+                dist_arr[i] = -1
                 continue
             x = point.x - agent.x
             y = point.y - agent.y
