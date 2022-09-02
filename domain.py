@@ -24,6 +24,7 @@ class DiscreteRoverDomain:
         self.sensor_range = p.sensor_range
         self.rand_action_rate = p.rand_action_rate      # Percent of time a random action is chosen
 
+        self.poi_x_y = []                               # to save POI xy locations
         self.avg_false = []                             # How many times agents choose null actions
         self.theoretical_max_g = 0                      # Maximum G if all POIs were perfectly captured
         self.vis = 0                                    # To visualize or not to visualize
@@ -94,6 +95,7 @@ class DiscreteRoverDomain:
         poi_vals = self.poi_options[poi_type, :]  # array of values from the POI options for each POI in the world
         x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
         y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
+        self.poi_x_y = np.array([x, y])
 
         # x = [2, 8]
         # y = [2, 8]
@@ -113,6 +115,9 @@ class DiscreteRoverDomain:
         poi_idx = [i for i in range(self.n_pois)]
         # return a list of the POI objects
         return list(map(POI, x, y, value, time_active, np.ndarray.tolist(n_times_active), slot_size, obs_required, couple, poi_type, n_agents, poi_idx, obs_radius))
+
+    def save_poi_locs(self, fpath):
+        np.save(fpath, self.poi_x_y)
 
     def move_pois(self):
         x = np.random.normal(0, 0.1, self.n_pois)  # x movement for all POIs
@@ -161,13 +166,14 @@ class DiscreteRoverDomain:
             self.pois[j].refresh()
             self.pois[j].viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
-    def run_sim(self, policies, multi_g=False):
+    def run_sim(self, policies, use_time=False):
         """
         This is set up to run one epoch for the number of time steps specified in the class definition.
         Tests a set of NN policies, one for each agent.
         Parameters
         ----------
         policies: a policy (assumes a NN) for each agent
+        use_time: sets whether to use time in the agent state. Defaults to false
 
         Returns
         -------
@@ -177,26 +183,22 @@ class DiscreteRoverDomain:
             raise ValueError(
                 'number of policies should equal number of agents in system (currently {})'.format(self.n_agents))
         for i in range(len(policies)):
-            self.agents[i].policy = policies[i]
+            self.agents[i].policy = policies[i] # sets all agent policies
         for t in range(self.time_steps):
             actions = []
             for agent in self.agents:
-                self.state(agent)  # gets the state
-                st = agent.state
-                act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
+                self.state(agent, use_time)  # calculates the state
+                act_array = agent.policy(agent.state).detach().numpy()  # picks an action based on the policy
                 act = self.action(agent, act_array)
                 actions.append(act)  # save the action to list of actions
 
             self.step(actions)
-            self.avg_false.append(actions.count(False) / len(actions))
+            # self.avg_false.append(actions.count(False) / len(actions))
             if self.visualize:
                 self.draw(t)
+        return self.G(), self.D()
 
-        if multi_g:
-            return self.G(), self.multiG(), np.mean(self.avg_false)
-        return self.G(), np.mean(self.avg_false)
-
-    def state(self, agent):
+    def state(self, agent, use_time=False):
         """
         Takes in an agent, returns the state and the relevant indices for the closest POI or agent in each region of each type
         :param agent:
@@ -204,9 +206,10 @@ class DiscreteRoverDomain:
         """
         # Number of sensor bins as rows, poi types plus agents types for columns
         n_agent_types = self.n_agent_types
-        if not self.with_agents:
-            n_agent_types = 0
-        state = np.zeros((self.n_regions, len(self.poi_options) + n_agent_types)) - 1
+        if use_time:
+            state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
+        else:
+            state = np.zeros((self.n_regions, (len(self.poi_options)) + n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
         ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
@@ -216,14 +219,17 @@ class DiscreteRoverDomain:
             d = poi_dist[i]
             if d == -1:         # If the POI is out of range, skip it
                 continue        # -1 was used as the arbitrary flag to indicate this POI is out of sensor range
-            quad = poi_quads[i]
+            quad = poi_quads[i]  # Distance portion of the state
             poi_type = self.pois[i].poi_type
+            type_2 = poi_type + len(self.poi_options)  # completeness / timing state
             # d is inverse distance, so this finds the closest one
             if d > state[quad, poi_type]:
                 state[quad, poi_type] = d
                 state_idx[quad, poi_type] = i
+                if use_time:
+                    state[quad, type_2] = self.pois[i].percent_complete
 
-        # Determine closest agent in each region and sum inverse distances of all agents in each quadrant
+        # Determine the closest agent in each region and sum inverse distances of all agents in each quadrant
         curr_best = np.zeros(self.n_regions) - 1
         if self.with_agents:
             for j in range(len(self.agents)):
@@ -277,6 +283,7 @@ class DiscreteRoverDomain:
             # Check to make sure it is not the same agent happens later (ignore for now for indexing reasons)
             point = points[i]
             if not point.active:
+                dist_arr[i] = -1
                 continue
             x = point.x - agent.x
             y = point.y - agent.y
@@ -300,17 +307,17 @@ class DiscreteRoverDomain:
                 quadrants[x] = 7
         return dist_arr, quadrants
 
-    def state_size(self):
+    def state_size(self, use_time):
         """
         state size is the discretization of the sensor (number of bins) times the number of POI types plus one
         In each region, the sensor will have one bit for each POI type (distance) and one bit for the sum of the inverse distance to all other agents in that region
         :return:
         state size
         """
-        if self.with_agents:
-            return self.n_regions * (self.n_poi_types + self.n_agent_types)
+        if use_time:
+            return self.n_regions * (self.n_poi_types*2 + self.n_agent_types)
         else:
-            return self.n_regions * self.n_poi_types
+            return self.n_regions * (self.n_poi_types + self.n_agent_types)
 
     def action(self, agent, nn_output):
         """
@@ -319,12 +326,6 @@ class DiscreteRoverDomain:
         :param nn_output: Assumes output from the NN a 1xN numpy array
         :return: agent, poi, or False (for no movement)
         """
-
-        # Choose a random action a small percent of the time in order to get out of being stuck
-        # If the agent policy has chosen not to move and the world isn't changing, the agent will never move.
-        # if np.random.random() < self.rand_action_rate:
-        #     nn_max_idx = np.random.randint(0, len(nn_output))
-        # else:
         nn_max_idx = np.argmax(nn_output)
 
         # first (n_regions) number of outputs represent POIs
