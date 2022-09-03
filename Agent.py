@@ -39,10 +39,12 @@ class Agent:
     def step(self):
         if self.poi:
             self.move()                     # move agent toward POI
-            if self.observe():              # If at the POI and observed
+            rew = self.observe()
+            if rew:                         # If at the POI and observed
                 poi = self.poi              # get the POI
                 poi.viewing.append(self)    # add the agent to current agents viewing the POI
                 poi.viewed.append(self)
+                poi.viewed_rew.append(rew)
                 self.poi.claimed = False
                 self.poi = None
 
@@ -75,6 +77,6 @@ class Agent:
         if self.poi.class_type == 'Agent' or self.poi.class_type == "Region":
             return 0
         if abs(self.poi.x - self.x) <= self.poi.obs_radius and abs(self.poi.y - self.y) <= self.poi.obs_radius:
-            return 1
+            return self.poi.curr_rew
         else:
             return 0

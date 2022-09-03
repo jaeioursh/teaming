@@ -11,8 +11,6 @@ from time import sleep, time
 
 class DiscreteRoverDomain:
     def __init__(self, p):
-        if p.poi_options is None:
-            p.poi_options = [[100, 1, 0]]
         self.p = p
         self.n_agents = p.n_agents                      # number of agents
         self.n_agent_types = p.n_agent_types            # number of types of agents
@@ -41,10 +39,10 @@ class DiscreteRoverDomain:
         if self.vis == 0:
             self.vis = 1
             plt.ion()
-            self.agent_offset = np.random.normal(0, 0.5, (self.n_agents, 2))
+        agent_offset = np.random.normal(0, 0.5, (self.n_agents, 2))
         plt.clf()
         xy = np.array([[poi.x, poi.y] for poi in self.pois])
-        XY = np.array([[agent.x, agent.y] for agent in self.agents]) + self.agent_offset
+        XY = np.array([[agent.x, agent.y] for agent in self.agents]) + agent_offset
         # alpha = [1 - poi.refresh_idx / poi.refresh_rate for poi in self.pois]
         alpha = [poi.poi_type for poi in self.pois]
         sizes = [poi.value * 20 + 10 for poi in self.pois]
@@ -81,40 +79,27 @@ class DiscreteRoverDomain:
         :return: list of POI objects
         """
         num_poi_types = np.shape(self.poi_options)[0]
-        n_each_type = int(np.floor(self.n_pois / num_poi_types))
+        x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
+        y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
+        self.poi_x_y = np.array([x, y])     # Use this to save x,y locations
 
         # This block makes it so POIs are evenly distributed between types
+        n_each_type = int(np.floor(self.n_pois / num_poi_types))    # number of each POI type
         poi_type = []
         for i in range(num_poi_types):
             poi_type += [i] * n_each_type
-        while len(poi_type) != self.n_pois:
+        while len(poi_type) < self.n_pois:
             poi_type += [np.random.randint(num_poi_types)]
-        # Instead of randomly assigned like the original line below:
-        # poi_type = np.random.randint(num_poi_types,
-        #                              size=self.n_pois)  # integers represent the POI type, one for each POI in the world
-        poi_vals = self.poi_options[poi_type, :]  # array of values from the POI options for each POI in the world
-        x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
-        y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
-        self.poi_x_y = np.array([x, y])
+        # poi_vals = self.poi_options[poi_type, :]  # array of values from the POI options for each POI in the world
 
-        # x = [2, 8]
-        # y = [2, 8]
         # Each one is a different type
         n_agents = [self.n_agents] * self.n_pois
-
-        time_active = np.ndarray.tolist(poi_vals[:, 0])
-        n_times_active = np.array(poi_vals[:, 1])
-        value = np.ndarray.tolist(poi_vals[:, 3])  # Use this if you want to set the values of each POI type individually
-        self.theoretical_max_g = sum(n_times_active * value)
-        slot_size = np.ndarray.tolist(np.floor(self.time_steps / n_times_active))      # should calculate equal length time slots
-        obs_required = np.ndarray.tolist(poi_vals[:, 2])
-        # value = [self.p.value for _ in range(self.n_pois)]  # Use this if you want all values to be the same
-
+        tot_time = [self.time_steps] * self.n_pois
         couple = [self.p.couple for _ in range(self.n_pois)]  # coupling requirement for all POIs
         obs_radius = [self.p.obs_radius for _ in range(self.n_pois)]  # Observation radius
         poi_idx = [i for i in range(self.n_pois)]
         # return a list of the POI objects
-        return list(map(POI, x, y, value, time_active, np.ndarray.tolist(n_times_active), slot_size, obs_required, couple, poi_type, n_agents, poi_idx, obs_radius))
+        return list(map(POI, x, y, couple, poi_type, n_agents, poi_idx, obs_radius, tot_time))
 
     def save_poi_locs(self, fpath):
         np.save(fpath, self.poi_x_y)
@@ -206,10 +191,12 @@ class DiscreteRoverDomain:
         """
         # Number of sensor bins as rows, poi types plus agents types for columns
         n_agent_types = self.n_agent_types
-        if use_time:
-            state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
-        else:
-            state = np.zeros((self.n_regions, (len(self.poi_options)) + n_agent_types)) - 1
+        state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
+
+        # if use_time:
+        #     state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
+        # else:
+        #     state = np.zeros((self.n_regions, (len(self.poi_options)) + n_agent_types)) - 1
         state_idx = np.zeros_like(state) - 1
         poi_dist, poi_quads = self._get_quadrant_state_info(agent, 'p')
         ag_dist, ag_quads = self._get_quadrant_state_info(agent, 'a')
@@ -227,7 +214,9 @@ class DiscreteRoverDomain:
                 state[quad, poi_type] = d
                 state_idx[quad, poi_type] = i
                 if use_time:
-                    state[quad, type_2] = self.pois[i].percent_complete
+                    state[quad, type_2] = self.pois[i].curr_rew
+                else:
+                    state[quad, type_2] = self.pois[i].active
 
         # Determine the closest agent in each region and sum inverse distances of all agents in each quadrant
         curr_best = np.zeros(self.n_regions) - 1
@@ -282,9 +271,6 @@ class DiscreteRoverDomain:
             # Compare each point (POI or other agent) to position of current agent
             # Check to make sure it is not the same agent happens later (ignore for now for indexing reasons)
             point = points[i]
-            if not point.active:
-                dist_arr[i] = -1
-                continue
             x = point.x - agent.x
             y = point.y - agent.y
             if x == 0 and y == 0:   # avoid divide by zero case
