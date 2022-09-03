@@ -282,20 +282,17 @@ class DiscreteRoverDomain:
             # Compare each point (POI or other agent) to position of current agent
             # Check to make sure it is not the same agent happens later (ignore for now for indexing reasons)
             point = points[i]
-            if not point.active:
-                dist_arr[i] = -1
-                continue
             x = point.x - agent.x
             y = point.y - agent.y
             if x == 0 and y == 0:   # avoid divide by zero case
-                inv_d = 2           # Set inverse distance to 2 - if <= 1 unit away, inv_d = 1. Need to differentiate "I am here"
+                inv_d = 1           # Set inverse distance to 2 - if <= 1 unit away, inv_d = 1. Need to differentiate "I am here"
             else:
                 d = sqrt(x ** 2 + y ** 2)  # inverse of absolute distance to each POI
                 inv_d = 1/d
                 if inv_d > 1:   # limit to [0, 1] range
                     inv_d = 1
                 if d > self.sensor_range:  # If it is out of sensor range, set it to -1 as a flag
-                    inv_d = -1
+                    inv_d = -2
             dist_arr[i] = inv_d
             theta_arr[i] = atan2(y, x)  # angle to each POI
         # Digitize is SLOOOOOOWWWWWWWWW

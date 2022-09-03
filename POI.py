@@ -53,7 +53,7 @@ class POI:
         self.curr_active_time = 0
         if self.times_active[0][0] == 0:
             self.active = True
-            self.percent_complete = 0
+            self.percent_complete = 1 - (1 / self.tot_time_active)
         else:
             self.active = False
 
@@ -79,7 +79,7 @@ class POI:
             self.refresh_weak()
         if self.active:
             self.curr_active_time += 1
-            self.percent_complete = self.curr_active_time / self.tot_time_active  # How far in to the active time am I
+            self.percent_complete = 1 - (self.curr_active_time / self.tot_time_active)  # How far in to the active time am I
         else:
             self.percent_complete = -1
 
