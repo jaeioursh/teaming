@@ -91,7 +91,7 @@ class DiscreteRoverDomain:
         while len(poi_type) < self.n_pois:
             poi_type += [np.random.randint(num_poi_types)]
         # poi_vals = self.poi_options[poi_type, :]  # array of values from the POI options for each POI in the world
-
+        str_type = [self.poi_options[k] for k in poi_type]
         # Each one is a different type
         n_agents = [self.n_agents] * self.n_pois
         tot_time = [self.time_steps] * self.n_pois
@@ -99,7 +99,7 @@ class DiscreteRoverDomain:
         obs_radius = [self.p.obs_radius for _ in range(self.n_pois)]  # Observation radius
         poi_idx = [i for i in range(self.n_pois)]
         # return a list of the POI objects
-        return list(map(POI, x, y, couple, poi_type, n_agents, poi_idx, obs_radius, tot_time))
+        return list(map(POI, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time))
 
     def save_poi_locs(self, fpath):
         np.save(fpath, self.poi_x_y)

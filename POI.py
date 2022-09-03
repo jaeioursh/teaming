@@ -3,17 +3,19 @@ from math import cos, sin
 from scipy import signal    # For square wave
 
 class POI:
-    def __init__(self, x, y, couple, poi_type, n_agents, poi_idx, obs_radius, tot_time, strong_coupling=False):
+    def __init__(self, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time, strong_coupling=False):
         self.class_type = 'POI'
         self.x = x                          # location - x
         self.y = y                          # location - y
         self.couple = couple                # coupling requirement
         self.poi_type = poi_type            # type
+        self.str_type = str_type
         self.poi_idx = poi_idx              # ID for each POI
         self.strong_coupling = strong_coupling      # 1: simultaneous observation,  0: observations within window of time
         self.obs_radius = obs_radius        # observation radius
         self.tot_time = tot_time
         self.n_agents = n_agents
+        self.value = 1
 
         self.time_rewards = np.zeros(tot_time)
         self.active = 0
@@ -53,13 +55,13 @@ class POI:
 
     def setup_times(self):
         x = np.linspace(0, self.tot_time - 1, self.tot_time)
-        if self.poi_type == 'sin' or self.poi_type == 'cos':
+        if self.str_type == 'sin' or self.str_type == 'cos':
             # This function gives you precisely two active waves during [0,60]
             self.time_rewards = .5 * (1 - np.cos(.21 * x))
-        elif self.poi_type == 'exp':
+        elif self.str_type == 'exp':
             # This function provides exponential decay that drops below 0.1 at around 20 time steps
             self.time_rewards = np.exp(-0.1 * x)
-        elif self.poi_type == 'sq' or self.poi_type == 'square':
+        elif self.str_type == 'sq' or self.str_type == 'square':
             # This provides two square waves, the second of which has half the amplitude of the first
             out_array = .5 * (1 - signal.square(.2 * x))
             # Array that reduces the values in the second half of the array by 50%
@@ -68,7 +70,7 @@ class POI:
             mult_array[-mid:] *= 0.5
             self.time_rewards = out_array * mult_array
         else:
-            raise ValueError(f"POI type {self.poi_type} not recognized")
+            raise ValueError(f"POI type {self.str_type} not recognized")
 
     def set_active(self):
         # Set the current reward and active status
@@ -88,9 +90,13 @@ class POI:
         #     self.refresh_strong()
         if self.curr_time == self.tot_time:
             self.refresh_weak()
+        if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
+            self.observed = 1
 
     def refresh_weak(self):
         if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
+            # TODO: Change this to work for coupling, because right now it doesn't
+            # BIGGER NOTE: This currently ONLY rewards the best agent. because I'm not working with coupling right now
             # NOTE: This currently assumes agents have uniform (all ones) capabilities.
             # If you need to use this with heterogeneous agents, it will need to be amended.
             idxs = [agent.idx for agent in self.viewed]
@@ -102,9 +108,21 @@ class POI:
             max_idx = sort_rew[-2:]
 
             # Subtract second largest from the largest captured reward
-            max_d = self.viewed_rew[max_idx[1]] - self.viewed_rew[max_idx[0]]
+            if len(max_idx) > 1:
+                best_ag = np.where(unique == idxs[max_idx[1]])[0][0]
+                second_ag = np.where(unique == idxs[max_idx[0]])[0][0]
+                if best_ag == second_ag:
+                    # If the best agent also got the next best score, just give it to them
+                    max_d = self.viewed_rew[best_ag]
+                else:
+                    # Otherwise subtract off the next best score
+                    max_d = self.viewed_rew[max_idx[1]] - self.viewed_rew[max_idx[0]]
+            else:
+                # If only one agent visited, then they get that score
+                best_ag = np.where(unique == idxs[max_idx[0]])[0][0]
+                max_d = self.viewed_rew[max_idx[0]]
             # This finds the index of the best agent in the UNIQUE array
-            best_ag = np.where(unique == max_idx[1])[0][0]
+            # best_ag = np.where(unique == max_idx[1])[0][0]
             ag_d[best_ag] = max_d
 
             self.D_vec[unique] += ag_d
