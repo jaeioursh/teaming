@@ -1,9 +1,9 @@
 import numpy as np
-from math import cos, sin
+from math import cos, sin, pi
 from scipy import signal    # For square wave
 
 class POI:
-    def __init__(self, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time, strong_coupling=False):
+    def __init__(self, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time, rand_shift=None, strong_coupling=False):
         self.class_type = 'POI'
         self.x = x                          # location - x
         self.y = y                          # location - y
@@ -24,6 +24,7 @@ class POI:
         self.successes = 0                  # number of times it has successfully been captured
         self.observed = 0                   # 0: not observed during this refresh cycle | 1: observed during this cycle
         self.claimed = 0                    # Used for greedy omniscient policy
+        self.rand_shift = rand_shift                 # Shift of the reward function
         self.D_vec = np.zeros(n_agents)     # difference rewards
         self.Dpp_vec = np.zeros(n_agents)   # D++ rewards
         self.viewed = []                    # list of all agents that viewed in refresh window
@@ -57,18 +58,27 @@ class POI:
         x = np.linspace(0, self.tot_time - 1, self.tot_time)
         if self.str_type == 'sin' or self.str_type == 'cos':
             # This function gives you precisely two active waves during [0,60]
-            self.time_rewards = .5 * (1 - np.cos(.21 * x))
+            if self.rand_shift is None:
+                self.rand_shift = np.random.uniform(0, pi)
+            self.time_rewards = .5 * (1 - np.cos((.21 * x) - self.rand_shift))
         elif self.str_type == 'exp':
             # This function provides exponential decay that drops below 0.1 at around 20 time steps
-            self.time_rewards = np.exp(-0.1 * x)
+            # if self.rand_shift is None:
+            self.rand_shift = np.random.choice([-1, 1])
+            # the rand shift either keeps the original shape or reverses it to be exponential growth (between [0,1])
+            self.time_rewards = np.exp(-0.1 * x)[::self.rand_shift]
         elif self.str_type == 'sq' or self.str_type == 'square':
             # This provides two square waves, the second of which has half the amplitude of the first
-            out_array = .5 * (1 - signal.square(.2 * x))
+            if self.rand_shift is None:
+                self.rand_shift = np.random.uniform(-1, 1)
+            out_array = .5 * (1 - signal.square(.2 * x + self.rand_shift))
             # Array that reduces the values in the second half of the array by 50%
             mult_array = np.ones(self.tot_time)
             mid = int(self.tot_time / 2) - 2
             mult_array[-mid:] *= 0.5
             self.time_rewards = out_array * mult_array
+        elif self.str_type == 'on':
+            self.time_rewards = np.ones(self.tot_time)
         else:
             raise ValueError(f"POI type {self.str_type} not recognized")
 
@@ -101,7 +111,7 @@ class POI:
             # If you need to use this with heterogeneous agents, it will need to be amended.
             idxs = [agent.idx for agent in self.viewed]
             unique = np.unique(idxs)
-            ag_d = np.zeros_like(unique)
+            ag_d = np.zeros_like(unique, dtype=float)
 
             # Find the two biggest values
             sort_rew = np.argsort(self.viewed_rew)
@@ -113,7 +123,7 @@ class POI:
                 second_ag = np.where(unique == idxs[max_idx[0]])[0][0]
                 if best_ag == second_ag:
                     # If the best agent also got the next best score, just give it to them
-                    max_d = self.viewed_rew[best_ag]
+                    max_d = self.viewed_rew[max_idx[1]]
                 else:
                     # Otherwise subtract off the next best score
                     max_d = self.viewed_rew[max_idx[1]] - self.viewed_rew[max_idx[0]]

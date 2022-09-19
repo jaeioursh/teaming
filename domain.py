@@ -26,6 +26,7 @@ class DiscreteRoverDomain:
         self.avg_false = []                             # How many times agents choose null actions
         self.theoretical_max_g = 0                      # Maximum G if all POIs were perfectly captured
         self.vis = 0                                    # To visualize or not to visualize
+        self.time = 0
         self.visualize = False
         self.poi_options = np.array(p.poi_options)      # options for each POI - [refresh rate, number of observations required, ID]
         self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
@@ -170,10 +171,11 @@ class DiscreteRoverDomain:
         for i in range(len(policies)):
             self.agents[i].policy = policies[i] # sets all agent policies
         for t in range(self.time_steps):
+            self.time = t
             actions = []
             for agent in self.agents:
-                self.state(agent, use_time)  # calculates the state
-                act_array = agent.policy(agent.state).detach().numpy()  # picks an action based on the policy
+                st = self.state(agent, use_time)  # calculates the state
+                act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
                 act = self.action(agent, act_array)
                 actions.append(act)  # save the action to list of actions
 
@@ -192,6 +194,7 @@ class DiscreteRoverDomain:
         # Number of sensor bins as rows, poi types plus agents types for columns
         n_agent_types = self.n_agent_types
         state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
+        # state = np.zeros((self.n_regions, (len(self.poi_options)) + n_agent_types)) - 1
 
         # if use_time:
         #     state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
@@ -237,8 +240,17 @@ class DiscreteRoverDomain:
                 if d > curr_best[quad]:
                     curr_best[quad] = d
                     state_idx[quad, ag_col] = j
+
+        st = state.reshape((1, -1))[0]  # Reshapes to be a single line array
+        # if use_time:
+        #     pct_time = self.time/self.time_steps
+        #     st = np.append(st, pct_time)
+
+        # Keeps state without time
         agent.state = state
         agent.state_idx = state_idx
+        # Returns flattened state with time
+        return st
 
     def joint_state(self):
         return [self.state(agent) for agent in self.agents]
@@ -300,10 +312,15 @@ class DiscreteRoverDomain:
         :return:
         state size
         """
-        if use_time:
-            return self.n_regions * (self.n_poi_types*2 + self.n_agent_types)
-        else:
-            return self.n_regions * (self.n_poi_types + self.n_agent_types)
+        return (self.n_regions * ((self.n_poi_types * 2) + self.n_agent_types))
+        # if use_time:
+        #     return (self.n_regions * (self.n_poi_types + self.n_agent_types)) + 1
+        # else:
+        #     return self.n_regions * (self.n_poi_types + self.n_agent_types)
+        # if use_time:
+        #     return self.n_regions * (self.n_poi_types*2 + self.n_agent_types)
+        # else:
+        #     return self.n_regions * (self.n_poi_types + self.n_agent_types)
 
     def action(self, agent, nn_output):
         """
