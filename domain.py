@@ -45,10 +45,13 @@ class DiscreteRoverDomain:
         xy = np.array([[poi.x, poi.y] for poi in self.pois])
         XY = np.array([[agent.x, agent.y] for agent in self.agents]) + agent_offset
         # alpha = [1 - poi.refresh_idx / poi.refresh_rate for poi in self.pois]
-        alpha = [poi.poi_type for poi in self.pois]
+        col = [poi.poi_type for poi in self.pois]
+        alpha = np.array([poi.active for poi in self.pois], dtype=float)
+        alpha[alpha < 0.1] = 0.2
+
         sizes = [poi.value * 20 + 10 for poi in self.pois]
 
-        plt.scatter(xy[:, 0], xy[:, 1], marker="s", s=sizes, c=alpha, vmin=0, vmax=1)
+        plt.scatter(xy[:, 0], xy[:, 1], marker="s", s=sizes, c=col, alpha=alpha, vmin=0, vmax=1)
         plt.scatter(XY[:, 0], XY[:, 1], marker="o")
         plt.ylim([0, self.size])
         plt.xlim([0, self.size])
@@ -80,10 +83,27 @@ class DiscreteRoverDomain:
         :return: list of POI objects
         """
         num_poi_types = np.shape(self.poi_options)[0]
-        x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
-        y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
+        if self.p.offset:
+            # THis only works for up to 4 POI because I'm being lazy
+            middle = self.size / 2.0
+            # this places POIs in the four corners of a square ad distance p.dist_to_poi away from the center
+            xy_off = [[-1, -1], [-1, 1], [1, -1], [1, 1]]
+            poi_x = []
+            poi_y = []
+            for poi in range(self.p.n_pois):
+                x_off, y_off = xy_off[poi]
+                poi_x.append(middle + (x_off * self.p.dist_to_poi))
+                poi_y.append(middle + (y_off * self.p.dist_to_poi))
+            x = np.array(poi_x)
+            y = np.array(poi_y)
+            phase_offset = pi / (self.p.n_pois - 1)
+            rand_shift = [i * phase_offset for i in range(self.p.n_pois)]
+        else:
+            x = np.random.randint(0, self.size, self.n_pois)  # x locations for all POIs
+            y = np.random.randint(0, self.size, self.n_pois)  # y locations for all POIs
+            rand_shift = [None for _ in range(self.p.n_pois)]
         self.poi_x_y = np.array([x, y])     # Use this to save x,y locations
-
+        params = [self.p for _ in range(self.p.n_pois)]
         # This block makes it so POIs are evenly distributed between types
         n_each_type = int(np.floor(self.n_pois / num_poi_types))    # number of each POI type
         poi_type = []
@@ -100,7 +120,7 @@ class DiscreteRoverDomain:
         obs_radius = [self.p.obs_radius for _ in range(self.n_pois)]  # Observation radius
         poi_idx = [i for i in range(self.n_pois)]
         # return a list of the POI objects
-        return list(map(POI, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time))
+        return list(map(POI, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time, params, rand_shift))
 
     def save_poi_locs(self, fpath):
         np.save(fpath, self.poi_x_y)

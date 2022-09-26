@@ -3,10 +3,11 @@ from math import cos, sin, pi
 from scipy import signal    # For square wave
 
 class POI:
-    def __init__(self, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time, rand_shift=None, strong_coupling=False):
+    def __init__(self, x, y, couple, poi_type, str_type, n_agents, poi_idx, obs_radius, tot_time, p, rand_shift=None, strong_coupling=False):
         self.class_type = 'POI'
         self.x = x                          # location - x
         self.y = y                          # location - y
+        self.p = p
         self.couple = couple                # coupling requirement
         self.poi_type = poi_type            # type
         self.str_type = str_type
@@ -60,7 +61,7 @@ class POI:
             # This function gives you precisely two active waves during [0,60]
             if self.rand_shift is None:
                 self.rand_shift = np.random.uniform(0, pi)
-            self.time_rewards = .5 * (1 - np.cos((.21 * x) - self.rand_shift))
+            self.time_rewards = .5 * (1 - np.cos((.335 * x) - self.rand_shift))
         elif self.str_type == 'exp':
             # This function provides exponential decay that drops below 0.1 at around 20 time steps
             # if self.rand_shift is None:
@@ -98,8 +99,12 @@ class POI:
         self.set_active()    # Sets current reward and active status
         # if self.strong_coupling:
         #     self.refresh_strong()
-        if self.curr_time == self.tot_time:
-            self.refresh_weak()
+        if self.p.offset:
+            if not self.active:
+                self.refresh_weak()
+        else:
+            if self.curr_time == self.tot_time:
+                self.refresh_weak()
         if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
             self.observed = 1
 
@@ -136,12 +141,12 @@ class POI:
             ag_d[best_ag] = max_d
 
             self.D_vec[unique] += ag_d
-            self.viewed = []
-            self.viewed_rew = []
-            # These are necessary for the greedy base comparison policy
-            self.claimed = 0
-            self.observed = 1
             self.successes += max_d
+        self.viewed = []
+        self.viewed_rew = []
+        # These are necessary for the greedy base comparison policy
+        self.claimed = 0
+        self.observed = 0
 
     def refresh_strong(self):
         if not self.observed:  # if it has not yet been observed this refresh cycle
