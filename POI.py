@@ -99,12 +99,12 @@ class POI:
         self.set_active()    # Sets current reward and active status
         # if self.strong_coupling:
         #     self.refresh_strong()
-        if self.p.offset:
-            if not self.active:
-                self.refresh_weak()
-        else:
-            if self.curr_time == self.tot_time:
-                self.refresh_weak()
+        # if self.p.offset:
+        #     if not self.active:
+        #         self.refresh_weak()
+        # else:
+        #     if self.curr_time == self.tot_time:
+        #         self.refresh_weak()
         if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
             self.observed = 1
 

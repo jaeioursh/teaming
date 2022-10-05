@@ -22,14 +22,15 @@ class DiscreteRoverDomain:
         self.sensor_range = p.sensor_range
         self.rand_action_rate = p.rand_action_rate      # Percent of time a random action is chosen
 
+        self.poi_options = np.array(p.poi_options)      # options for each POI - [refresh rate, number of observations required, ID]
+        self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
+        self.captured = np.zeros(self.n_poi_types)
         self.poi_x_y = []                               # to save POI xy locations
         self.avg_false = []                             # How many times agents choose null actions
         self.theoretical_max_g = 0                      # Maximum G if all POIs were perfectly captured
         self.vis = 0                                    # To visualize or not to visualize
         self.time = 0
         self.visualize = False
-        self.poi_options = np.array(p.poi_options)      # options for each POI - [refresh rate, number of observations required, ID]
-        self.n_poi_types = np.shape(self.poi_options)[0]    # how many different types of POIs - allows for calc of L
         self.pois = self.gen_pois()                     # generate POIs
         self.agents = self.gen_agents()                 # generate agents
         self.sensor_bins = np.linspace(pi, -pi, self.n_regions + 1, True)  # Discretization for sensor bins
@@ -83,11 +84,12 @@ class DiscreteRoverDomain:
         :return: list of POI objects
         """
         num_poi_types = np.shape(self.poi_options)[0]
+        self.captured = np.zeros(num_poi_types)
         if self.p.offset:
-            # THis only works for up to 4 POI because I'm being lazy
+            # THis only works for up to 8 POI because I'm being lazy
             middle = self.size / 2.0
             # this places POIs in the four corners of a square ad distance p.dist_to_poi away from the center
-            xy_off = [[-1, -1], [-1, 1], [1, -1], [1, 1]]
+            xy_off = [[-1, -1], [-1, 1], [1, -1], [1, 1], [-1, 0], [1, 0], [0, -1], [0, 1]]
             poi_x = []
             poi_y = []
             for poi in range(self.p.n_pois):
@@ -148,6 +150,7 @@ class DiscreteRoverDomain:
         for p in self.pois:  # reset all POIs to initial config
             p.reset()
         self.avg_false = []
+        self.captured[:] = 0
 
     def new_env(self):
         self.pois = self.gen_pois()
@@ -170,7 +173,19 @@ class DiscreteRoverDomain:
         # refresh all POIs and reset which agents are currently viewing
         for j in range(self.n_pois):
             self.pois[j].refresh()
+            if len(self.pois[j].viewing) > 0:
+                if not self.captured[self.pois[j].poi_type]:
+                    self.poi_check(self.pois[j].poi_type)
             self.pois[j].viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
+    def poi_check(self, poi_type):
+        if poi_type == 0:
+            self.captured[0] = 1
+        else:
+            previous_poi = self.captured[:poi_type]     # Check all POIs before this one
+            zero_in_prev = previous_poi[previous_poi == 0]
+            # If all the previous spots are filled
+            if len(zero_in_prev) == 0:
+                self.captured[poi_type] = 1
 
     def run_sim(self, policies, use_time=False):
         """
@@ -203,7 +218,7 @@ class DiscreteRoverDomain:
             # self.avg_false.append(actions.count(False) / len(actions))
             if self.visualize:
                 self.draw(t)
-        return self.G(), self.D()
+        return self.sequence_G() #, self.D()
 
     def state(self, agent, use_time=False):
         """
@@ -213,9 +228,9 @@ class DiscreteRoverDomain:
         """
         # Number of sensor bins as rows, poi types plus agents types for columns
         n_agent_types = self.n_agent_types
-        state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
-        # state = np.zeros((self.n_regions, (len(self.poi_options)) + n_agent_types)) - 1
-
+        # state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
+        state = np.zeros((self.n_regions, (len(self.poi_options)) + n_agent_types)) - 1
+        #
         # if use_time:
         #     state = np.zeros((self.n_regions, (len(self.poi_options) * 2) + n_agent_types)) - 1
         # else:
@@ -236,10 +251,10 @@ class DiscreteRoverDomain:
             if d > state[quad, poi_type]:
                 state[quad, poi_type] = d
                 state_idx[quad, poi_type] = i
-                if use_time:
-                    state[quad, type_2] = self.pois[i].curr_rew
-                else:
-                    state[quad, type_2] = self.pois[i].active
+                # if use_time:
+                #     state[quad, type_2] = self.pois[i].curr_rew
+                # else:
+                #     state[quad, type_2] = self.pois[i].active
 
         # Determine the closest agent in each region and sum inverse distances of all agents in each quadrant
         curr_best = np.zeros(self.n_regions) - 1
@@ -262,9 +277,9 @@ class DiscreteRoverDomain:
                     state_idx[quad, ag_col] = j
 
         st = state.reshape((1, -1))[0]  # Reshapes to be a single line array
-        # if use_time:
-        #     pct_time = self.time/self.time_steps
-        #     st = np.append(st, pct_time)
+        if use_time:
+            pct_time = self.time/self.time_steps
+            st = np.append(st, pct_time)
 
         # Keeps state without time
         agent.state = state
@@ -332,11 +347,11 @@ class DiscreteRoverDomain:
         :return:
         state size
         """
-        return (self.n_regions * ((self.n_poi_types * 2) + self.n_agent_types))
-        # if use_time:
-        #     return (self.n_regions * (self.n_poi_types + self.n_agent_types)) + 1
-        # else:
-        #     return self.n_regions * (self.n_poi_types + self.n_agent_types)
+        # return (self.n_regions * ((self.n_poi_types * 2) + self.n_agent_types))
+        if use_time:
+            return (self.n_regions * (self.n_poi_types + self.n_agent_types)) + 1
+        else:
+            return self.n_regions * (self.n_poi_types + self.n_agent_types)
         # if use_time:
         #     return self.n_regions * (self.n_poi_types*2 + self.n_agent_types)
         # else:
@@ -416,6 +431,12 @@ class DiscreteRoverDomain:
         g = 0
         for poi in self.pois:
             g += poi.successes * poi.value
+        return g
+
+    def sequence_G(self):
+        g = 0
+        if sum(self.captured) == self.n_poi_types:
+            g = 1
         return g
 
     def D(self):
