@@ -1,7 +1,4 @@
 import numpy as np
-from teaming.POI import FalsePOI
-from math import pi
-from random import uniform
 
 
 class Agent:
@@ -74,7 +71,7 @@ class Agent:
         :return:
         """
 
-        if self.poi.class_type == 'Agent' or self.poi.class_type == "Region":
+        if self.poi.class_type == 'Agent':
             return 0
         if abs(self.poi.x - self.x) <= self.poi.obs_radius and abs(self.poi.y - self.y) <= self.poi.obs_radius:
             return self.poi.curr_rew
