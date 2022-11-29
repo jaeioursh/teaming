@@ -10,8 +10,8 @@ class Parameters:
     # Domain:
     n_agents = 1
     n_agent_types = 1
-    n_pois = 10
-    poi_options = [[60, 1, 1, 1], [30, 2, 1, 1]]  # time active, number of times active, observation_req, value
+    n_poi_types = 3
+    rooms = [[1, 2, 3], [3, 2, 1], [3, 3, 0], [3, 0, 3]]
     with_agents = True
     size = 30
     time_steps = 100
