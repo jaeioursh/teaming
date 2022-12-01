@@ -7,43 +7,33 @@ class Agent:
         self.idx = idx
         self.x = x                  # location - x
         self.y = y                  # location - y
-        self._x = x                 # initial location - x
-        self._y = y                 # initial location - y
-        self.prior_x = self.x
-        self.prior_y = self.y
         self.p = p
+        self.curr_rm = None
         self.type = type            # Agent type - TODO: this should not be hard-coded
-        self.num_stationary = 0
-        self.poi = None             # variable to store desired goal
+        self.goal = None             # variable to store desired goal
         # self.capabilities = cap     # randomly initialize agent's capability of viewing each POI
         self.capabilities = np.ones_like(cap)       # Agents are equally good at finding all POIs
         self.policy = None
         self.state = None           # Current state
-        self.state_idx = None       # Metadata about the state
-        self.active = True
+        self.rm_timers = np.zeros(len(self.p.rooms) + 1) + 100   # Keep track of how long it has been since last in each room - everything starts as 'never been'
+        self.rm_in_state = np.zeros_like(self.rm_timers)    # Binary to determine whether info drops out of state (0 don't include / 1 include)
 
     def reset(self):
-        self.x = self._x            # magically teleport to initial location
-        self.y = self._y            # magically teleport to initial location
-        self.poi = None             # reset to no desired POI
+        self.goal = None             # reset to no desired POI
         self.policy = None
         self.state = None
-        self.state_idx = None
-        self.prior_y = 0
-        self.prior_x = 0
-        self.num_stationary = 0
 
     def step(self):
-        if self.poi:
+        if self.goal:
             self.move()                     # move agent toward POI
             rew = self.observe()
             if rew:                         # If at the POI and observed
-                poi = self.poi              # get the POI
+                poi = self.goal              # get the POI
                 poi.viewing.append(self)    # add the agent to current agents viewing the POI
                 poi.viewed.append(self)
                 poi.viewed_rew.append(rew)
-                self.poi.claimed = False
-                self.poi = None
+                self.goal.claimed = False
+                self.goal = None
 
     # moves agent 1-unit towards the POI
     def move(self):
@@ -51,11 +41,9 @@ class Agent:
         If the agent has a desired POI, move one unit toward POI
         :return:
         """
-        self.prior_x = self.x
-        self.prior_y = self.y
-        if self.poi is not None:
-            X = self.poi.x
-            Y = self.poi.y
+        if self.goal is not None:
+            X = self.goal[0]
+            Y = self.goal[1]
             R = ((X-self.x)**2.0+(Y-self.y)**2.0)**0.5
             if R > 1:
                 self.y += (Y-self.y)/R
@@ -71,9 +59,18 @@ class Agent:
         :return:
         """
 
-        if self.poi.class_type == 'Agent':
+        if self.goal.class_type == 'Agent':
             return 0
-        if abs(self.poi.x - self.x) <= self.poi.obs_radius and abs(self.poi.y - self.y) <= self.poi.obs_radius:
-            return self.poi.curr_rew
+        if abs(self.goal.x - self.x) <= self.goal.obs_radius and abs(self.goal.y - self.y) <= self.goal.obs_radius:
+            return self.goal.curr_rew
         else:
             return 0
+
+    def update_rm_st(self):
+        # Add one to each room timer
+        self.rm_timers += 1
+        # Set current room to zero
+        self.rm_timers[self.curr_rm] = 0
+        # Set the boolean value to 0 if greater than the time threshold, otherwise 1
+        self.rm_in_state = np.zeros_like(self.rm_timers)
+        self.rm_in_state[self.rm_timers < self.p.time_threshold] = 1

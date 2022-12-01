@@ -1,7 +1,8 @@
 import numpy as np
 
 class Room:
-    def __init__(self, p, bounds, door, pois):
+    def __init__(self, idx, p, bounds, door, pois):
+        self.idx = idx
         self.p = p
         self.bounds = bounds  # [lower left, upper right] - [[x1, y1], [x2, y2]]
         self.pois = pois
@@ -25,7 +26,7 @@ class Room:
         Returns a list of the number of POIs of each type in this room.
         :return state:
         """
-        st = np.zeros(len(self.p.poi_options))
+        st = np.zeros(self.p.n_poi_types)
         for poi in self.pois:
             st[poi.poi_type] += 1
         return st
