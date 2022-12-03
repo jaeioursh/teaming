@@ -256,12 +256,23 @@ class DiscreteRoverDomain:
                 ag.curr_rm = rm.idx
         ag.update_rm_st()
 
-    def state(self, agent):
+    def state(self, agent, global_st):
         """
         Takes in an agent, returns the state and the relevant indices for the closest POI or agent in each region of each type
-        :param agent:
+        :param agent, global_st:
         :return state, state_idx:
         """
+        # TODO: Include other agents & agent types
+        rm_st = []
+        for i, rm in enumerate(global_st):
+            # Multiplies binary value of whether to include that room in the state by the state
+            # 0 if don't include / 1 if include
+            # Any room that has not been visited recently will be all 0s
+            rm_st.append(agent.rm_in_state[i] * rm)
+        # Flattens the matrix and adds the agent's current room to the end
+        st = np.reshape(rm_st, (1, -1))[0]
+        np.append(st, agent.curr_rm)
+        return st
 
     def joint_state(self):
         global_st = []
@@ -270,35 +281,22 @@ class DiscreteRoverDomain:
 
         actions = []
         for agent in self.agents:
-            st = self.state(agent)  # calculates the state
+            st = self.state(agent, global_st)  # calculates the state
             act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
             act = self.action(agent, act_array)
             actions.append(act)  # save the action to list of actions
         return actions
 
-    def _get_quadrant_state_info(self, agent):
-        """
-        Get 'quadrant' state information for all other points or agents
-        Parameters
-        ----------
-        agent:  agent for which we are getting state info
-        Returns
-        -------
-        distance and quadrant number for each point
 
+    def state_size(self):
         """
-        # Deleting code because it will need to be rewritten
-        pass
-
-
-    def state_size(self, use_time):
-        """
-        state size is the discretization of the sensor (number of bins) times the number of POI types plus one
-        In each region, the sensor will have one bit for each POI type (distance) and one bit for the sum of the inverse distance to all other agents in that region
+        State is how many of each POI type are in each room
+        Plus one for the room the agent is currently in
         :return:
         state size
         """
-        return self.n_rooms * (self.n_poi_types + self.n_agent_types)
+        # TODO: Include other agents & agent types
+        return (self.n_rooms * self.n_poi_types) + 1
 
 
     def action(self, agent, nn_output):
@@ -309,7 +307,13 @@ class DiscreteRoverDomain:
         :return: agent, poi, or False (for no movement)
         """
         nn_max_idx = np.argmax(nn_output)
-        #TODO: Figure out the mapping between the NN output and the action
+        # Figure out room number - divide by number of POI types + agent types
+        # If in that room, figure out closest POI of that type -
+        #     Loop through POIs - if of type, find distance
+        #     Keep track of closest distance and POI IDX
+        # If in a different room, go to door
+        # If in the hallway, go to door of room chosen
+
         pass
 
 
