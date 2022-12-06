@@ -7,7 +7,7 @@ class POI:
         self.x = x                          # location - x
         self.y = y                          # location - y
         self.p = p                          # Global parameters
-        self.poi_type = poi_type            # type (numerical type to keep track of the same POI types)
+        self.type = poi_type            # type (numerical type to keep track of the same POI types)
         self.rm_idx = rm_idx                # Keep track of which room this POI is in
 
         self.couple = self.p.couple                # coupling requirement
@@ -49,7 +49,7 @@ class POI:
         if not self.observed:  # if it has not yet been observed this refresh cycle
             if len(self.viewing) > 0:
                 idxs = [agent.idx for agent in self.viewing]
-                capabilities = [agent.capabilities[self.poi_type] for agent in
+                capabilities = [agent.capabilities[self.type] for agent in
                                 self.viewing]  # check to make sure the agents are capable of observing this POI
                 capabilities = sorted(capabilities)
                 g = capabilities[0]  # Add minimum capability of agents to success of observation
@@ -61,7 +61,7 @@ class POI:
                     dpp = []
                     for agent in self.viewing:
                         if len(self.viewing) >= self.couple + 1:  # too many viewing
-                            if agent.capabilities[self.poi_type] == g:
+                            if agent.capabilities[self.type] == g:
                                 d.append(g - capabilities[1])
                             else:
                                 d.append(0)

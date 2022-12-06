@@ -7,6 +7,7 @@ class Room:
         self.bounds = bounds  # [lower left, upper right] - [[x1, y1], [x2, y2]]
         self.pois = pois
         self.door = door
+        self.agents_in_rm = []
 
     def in_room(self, agent):
         """
@@ -26,7 +27,16 @@ class Room:
         Returns a list of the number of POIs of each type in this room.
         :return state:
         """
-        st = np.zeros(self.p.n_poi_types)
+        # Doing it this way instead of numpy zeros so I can use extend (no simple numpy equivalent)
+        st = [0] * self.p.n_poi_types
+        # How many of each POI type are in this room
+        # Theoretically this part could be calculated only once with how it is set up right now
+        # BUT I'm leaving it this way because we will likely have POIs that appear / disappear at some point
         for poi in self.pois:
             st[poi.poi_type] += 1
+        ag_st = [0] * self.p.n_agent_types
+        # How many of each agent type are in this room
+        for ag in self.agents_in_rm:
+            ag_st[ag.type] += 1
+        st.extend(ag_st)
         return st
