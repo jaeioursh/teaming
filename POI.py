@@ -40,13 +40,19 @@ class POI:
     def refresh(self):
         if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
             self.observed = 1
+        
 
     def refresh_weak(self):
         # TODO: put in logic for D / D++ Rewards
         pass
 
     def refresh_strong(self):
-        if not self.observed:  # if it has not yet been observed this refresh cycle
+        if len(self.viewing) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
+            self.observed = 1
+        else:
+            self.observed = 0
+
+        if self.observed:  # if it has not yet been observed this refresh cycle
             if len(self.viewing) > 0:
                 idxs = [agent.idx for agent in self.viewing]
                 capabilities = [agent.capabilities[self.type] for agent in

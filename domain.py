@@ -244,7 +244,7 @@ class DiscreteRoverDomain:
         # update all agents
         for i, ag in enumerate(self.agents):
             # agents set a new goal at every time step
-            if actions[i]:
+            if actions[i] is not None:
                 act=self.action(ag,actions[i])
                 ag.xy_goal = act[:2]  # Unpack x, y target for agent
                 ag.poi = act[2]    # Unpack POI if it exists (otherwise this will be None)
@@ -252,7 +252,7 @@ class DiscreteRoverDomain:
         self.update_rms()
         # refresh all POIs and reset which agents are currently viewing
         for j, poi in enumerate(self.pois):
-            poi.refresh()
+            poi.refresh_strong()
             poi.viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
     def update_rms(self):

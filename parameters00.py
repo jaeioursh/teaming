@@ -22,7 +22,7 @@ class Parameters:
     value = 1
     obs_radius = 1
     couple = 1
-    strong_coupling = False
+    strong_coupling = True
 
     # Agent:
     capabilities = False
