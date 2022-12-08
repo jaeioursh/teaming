@@ -1,13 +1,14 @@
 import numpy as np
 from math import pi, sqrt, atan2
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 from os import path, getcwd
 
 from teaming.Agent import Agent
 from teaming.POI import POI
 from teaming.room import Room
 from time import sleep, time
-from teaming.parameters00 import Parameters as p
+
 
 
 
@@ -404,8 +405,39 @@ class DiscreteRoverDomain:
             d = d + poi.Dpp_vec * poi.value
         return d
 
+    def view(self):
+        plt.ion()
+        plt.clf()
+        plt.xlim([-1,self.size+1])
+        plt.ylim([-1,self.size+1])
+        
+        ax=plt.gca()
+        for room in self.rooms:
+            bounds=room.bounds
+            ax.add_patch(Rectangle(bounds[0],bounds[1][0]-bounds[0][0],bounds[1][1]-bounds[0][1],
+                    edgecolor='red',
+                    facecolor='none',
+                    zorder=-1,
+                    lw=2))
+        for room in self.rooms:    
+            door=room.door
+            if door is not None:
+                plt.scatter(door[0],door[1],s=500,c="black",marker="_")
+        poi=np.array([[poi.x,poi.y,poi.type] for poi in self.pois]).T
+        color=["r","b","y","c"]
+        colors=[color[int(p)] for p in poi[2]]
+        plt.scatter(poi[0],poi[1],c=colors,marker="s")
+        
+        agent=np.array([[agent.x,agent.y,agent.type] for agent in self.agents]).T
+        color=["r","b","y","c"]
+        colors=[color[int(p)] for p in agent[2]]
+        plt.scatter(agent[0],agent[1],c=colors,marker="o")
+
+        plt.pause(1/10)
+
 
 if __name__ == "__main__":
+    from teaming.parameters00 import Parameters as p
     env = DiscreteRoverDomain(p)
-
+    env.view()
     env.joint_state()
