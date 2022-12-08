@@ -245,8 +245,9 @@ class DiscreteRoverDomain:
         for i, ag in enumerate(self.agents):
             # agents set a new goal at every time step
             if actions[i]:
-                ag.xy_goal = actions[i][:2]  # Unpack x, y target for agent
-                ag.poi = actions[i][2]    # Unpack POI if it exists (otherwise this will be None)
+                act=self.action(ag,actions[i])
+                ag.xy_goal = act[:2]  # Unpack x, y target for agent
+                ag.poi = act[2]    # Unpack POI if it exists (otherwise this will be None)
                 ag.step()  # move agent toward POI
         self.update_rms()
         # refresh all POIs and reset which agents are currently viewing
