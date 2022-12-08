@@ -7,6 +7,8 @@ class Agent:
         self.idx = idx
         self.x = x                  # location - x
         self.y = y                  # location - y
+        self._x = x                 # Initial location
+        self._y = y                 # Initial location
         self.p = p
         self.curr_rm = None
         self.type = type            # Agent type - TODO: this should not be hard-coded
@@ -25,6 +27,11 @@ class Agent:
         self.curr_rm = None
         self.policy = None
         self.state = None
+        self.x = self._x                # Reset to initial location
+        self.y = self._y
+
+        self.rm_timers = np.zeros(len(self.p.rooms)) + 100  # Keep track of how long it has been since last in each room - everything starts as 'never been'
+        self.rm_in_state = np.zeros_like(self.rm_timers)  # Binary to determine whether info drops out of state (0 don't include / 1 include)
 
     def step(self):
         if self.xy_goal:
@@ -43,10 +50,14 @@ class Agent:
         If the agent has a desired POI, move one unit toward POI
         :return:
         """
-        if self.xy_goal is not None:
+        goal_exists = [x for x in self.xy_goal if x]        # This checks that something other than None is in the array
+        if goal_exists:
             X = self.xy_goal[0]
             Y = self.xy_goal[1]
-            R = ((X-self.x)**2.0+(Y-self.y)**2.0)**0.5
+            try:
+                R = ((X-self.x)**2.0+(Y-self.y)**2.0)**0.5
+            except TypeError:
+                print(X, Y, self.x, self.y)
             if R > 1:
                 self.y += (Y-self.y)/R
                 self.x += (X-self.x)/R

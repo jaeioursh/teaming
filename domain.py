@@ -229,7 +229,8 @@ class DiscreteRoverDomain:
             self.agents[i].policy = policies[i]  # sets all agent policies
         for t in range(self.time_steps):
             self.time = t
-            actions = self.joint_state()
+            state = self.joint_state()
+            actions = self.joint_actions(state)
             self.step(actions)
             if self.vis:
                 self.draw(t)
@@ -243,16 +244,17 @@ class DiscreteRoverDomain:
         """
         # update all agents
         for i, ag in enumerate(self.agents):
+            act = actions[i]
+            act_true = [x for x in act if x]        # Checks that actions are not all None
             # agents set a new goal at every time step
-            if actions[i] is not None:
-                act=self.action(ag,actions[i])
+            if act_true:
                 ag.xy_goal = act[:2]  # Unpack x, y target for agent
                 ag.poi = act[2]    # Unpack POI if it exists (otherwise this will be None)
                 ag.step()  # move agent toward POI
         self.update_rms()
         # refresh all POIs and reset which agents are currently viewing
         for j, poi in enumerate(self.pois):
-            poi.refresh_strong()
+            poi.refresh()
             poi.viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
     def update_rms(self):
@@ -270,13 +272,17 @@ class DiscreteRoverDomain:
         for rm in self.rooms:
             global_st.append(rm.poi_state())
 
-        actions = []
+        joint_st = []
         for agent in self.agents:
             st = self.state(agent, global_st)  # calculates the state
-            try:
-                act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
-            except TypeError:
-                print(st)
+            joint_st.append(st)
+        return joint_st
+
+    def joint_actions(self, joint_st):
+        actions = []
+        for i, agent in enumerate(self.agents):
+            st = joint_st[i]
+            act_array = agent.policy(st).detach().numpy()  # picks an action based on the policy
             act = self.action(agent, act_array)
             actions.append(act)  # save the action to list of actions
         return actions
