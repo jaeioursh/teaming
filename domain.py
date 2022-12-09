@@ -244,17 +244,23 @@ class DiscreteRoverDomain:
         """
         # update all agents
         for i, ag in enumerate(self.agents):
-            act = actions[i]
-            act_true = [x for x in act if x]        # Checks that actions are not all None
+
+            #act = actions[i]
+            #act_true = [x for x in act if x]        # Checks that actions are not all None
+            
             # agents set a new goal at every time step
-            if act_true:
+            if actions[i] is not None:
+                act=self.action(ag,actions[i])
                 ag.xy_goal = act[:2]  # Unpack x, y target for agent
                 ag.poi = act[2]    # Unpack POI if it exists (otherwise this will be None)
                 ag.step()  # move agent toward POI
         self.update_rms()
         # refresh all POIs and reset which agents are currently viewing
         for j, poi in enumerate(self.pois):
-            poi.refresh()
+            if self.p.strong_coupling:
+                poi.refresh_strong()
+            else:
+                poi.refresh()
             poi.viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
     def update_rms(self):
@@ -316,7 +322,7 @@ class DiscreteRoverDomain:
         """
         return (self.n_rooms * (self.n_poi_types + self.n_agent_types)) + 1
 
-    def action(self, agent, nn_output):
+    def action(self, agent, nn_max_idx):
         """
 
         :param agent:
@@ -324,7 +330,7 @@ class DiscreteRoverDomain:
         :return: agent, poi, or False (for no movement)
         """
         # NN outputs are rooms x (agent types + poi types)
-        nn_max_idx = np.argmax(nn_output)
+        #nn_max_idx = np.argmax(nn_output)
         # Figure out room number - divide by number of POI types + agent types
         it_per_rm = self.n_poi_types + self.n_agent_types
         rm_num = int(nn_max_idx / it_per_rm)
