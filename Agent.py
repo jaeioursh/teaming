@@ -18,7 +18,7 @@ class Agent:
         self.capabilities = np.ones_like(cap)       # Agents are equally good at finding all POIs
         self.policy = None
         self.state = None           # Current state
-        self.rm_timers = np.zeros(len(self.p.rooms)) + 100   # Keep track of how long it has been since last in each room - everything starts as 'never been'
+        self.rm_timers = np.zeros(len(self.p.rooms) + 1) + 100   # Keep track of how long it has been since last in each room - everything starts as 'never been'
         self.rm_in_state = np.zeros_like(self.rm_timers)    # Binary to determine whether info drops out of state (0 don't include / 1 include)
 
     def reset(self):
@@ -30,7 +30,7 @@ class Agent:
         self.x = self._x                # Reset to initial location
         self.y = self._y
 
-        self.rm_timers = np.zeros(len(self.p.rooms)) + 100  # Keep track of how long it has been since last in each room - everything starts as 'never been'
+        self.rm_timers = np.zeros(len(self.p.rooms) + 1) + 100  # Keep track of how long it has been since last in each room - everything starts as 'never been'
         self.rm_in_state = np.zeros_like(self.rm_timers)  # Binary to determine whether info drops out of state (0 don't include / 1 include)
 
     def step(self):

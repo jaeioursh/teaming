@@ -45,6 +45,8 @@ class Room:
         # Theoretically this part could be calculated only once with how it is set up right now
         # BUT I'm leaving it this way because we will likely have POIs that appear / disappear at some point
         for poi in self.pois:
+            if poi.observed:
+                continue
             st[poi.type] += 1
         ag_st = [0] * self.p.n_agent_types
         # How many of each agent type are in this room

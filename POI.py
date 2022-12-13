@@ -38,13 +38,27 @@ class POI:
         self.viewing = []                   # list of currently observing agents
 
     def refresh(self):
+        # if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
+        #     self.observed = 1
+        #     self.successes = 1
+        if not self.observed:
+            self.refresh_weak()
+
+    def refresh_weak(self):
         if len(self.viewed) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
             self.observed = 1
             self.successes = 1
+            idxs = [agent.idx for agent in self.viewed]
+            unique = np.unique(idxs)
+            ag_d = np.zeros_like(unique)
+            for i, ag in enumerate(unique):
+                temp_arr = [idx for idx in idxs if idx != ag]
+                if len(temp_arr) < self.couple:
+                    # If the observation is not met without this agent, then it gets the full value of the POI
+                    ag_d[i] = 1
+            self.D_vec[unique] += np.array(ag_d)
 
-    def refresh_weak(self):
-        # TODO: put in logic for D / D++ Rewards
-        pass
+        self.viewing = []
 
     def refresh_strong(self):
         if len(self.viewing) >= self.couple:  # if weak coupling, check all the agents that viewed this refresh cycle
