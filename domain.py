@@ -276,8 +276,12 @@ class DiscreteRoverDomain:
             # Multiplies binary value of whether to include that room in the state by the state
             # 0 if don't include / 1 if include
             # Any room that has not been visited recently will be all 0s
-            x = agent.rm_in_state[i]
-            rm_st.append(agent.rm_in_state[i] * rm_np)
+            incl_rm = agent.rm_in_state[i]
+            if incl_rm:
+                rm_st.append(incl_rm * rm_np)
+            else:
+                # Optimistic values - include values to encourage exploration
+                rm_st.append([2] * len(rm_np))
         # Flattens the matrix and adds the agent's current room to the end
         st = np.reshape(rm_st, (1, -1))[0]
         full_st = np.append(st, agent.curr_rm)
@@ -340,6 +344,8 @@ class DiscreteRoverDomain:
         for a_or_p in ag_or_poi:
             # Only check poi/ag that are of the correct type
             if a_or_p.type != poi_ag_num:
+                continue
+            if cls == 'POI' and a_or_p.observed:
                 continue
             px, py = a_or_p.x, a_or_p.y
             dist = sqrt((ax - px) ** 2 + (ay - py) ** 2)
