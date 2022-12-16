@@ -310,6 +310,11 @@ class DiscreteRoverDomain:
         rm_num = int(nn_max_idx / it_per_rm)
         # Goal is [x, y, POI] - if goal is not a POI, then the last element is None
         goal = [None, None, None]
+        agent_rm_door = self.rooms[agent.curr_rm].door
+        if agent_rm_door:
+            dist_to_door = sqrt((agent.x - agent_rm_door[0]) ** 2 + (agent.y - agent_rm_door[1]) ** 2)
+        else:
+            dist_to_door = 1
 
         # If in that room, figure out closest POI / agent of that type
         if agent.curr_rm == rm_num:
@@ -318,7 +323,8 @@ class DiscreteRoverDomain:
 
         # If the room number (index) == number of rooms - 1, then the agent is in the hallway (last room added)
         # If in the hallway, go to door of room chosen
-        elif agent.curr_rm == self.n_rooms - 1:
+        # If in the doorway, go to the door of the chosen room (otherwise it gets stuck in the doorway)
+        elif agent.curr_rm == self.n_rooms - 1 or dist_to_door < 0.1:
             goal = self.rooms[rm_num].door + [None]
 
         # If in a different room, go to door of the current room
@@ -372,7 +378,7 @@ class DiscreteRoverDomain:
     def multiG(self):
         g = np.zeros(self.n_poi_types)
         for poi in self.pois:
-            g[poi.poi_type] += poi.successes * poi.value
+            g[poi.type] += poi.successes * poi.value
         return g
 
     # returns global reward based on POI values
