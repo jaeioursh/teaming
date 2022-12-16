@@ -351,8 +351,6 @@ class DiscreteRoverDomain:
             # Only check poi/ag that are of the correct type
             if a_or_p.type != poi_ag_num:
                 continue
-            if cls == 'POI' and a_or_p.observed:
-                continue
             px, py = a_or_p.x, a_or_p.y
             dist = sqrt((ax - px) ** 2 + (ay - py) ** 2)
             if dist < cl_dist:
@@ -378,7 +376,7 @@ class DiscreteRoverDomain:
     def multiG(self):
         g = np.zeros(self.n_poi_types)
         for poi in self.pois:
-            g[poi.type] += poi.successes * poi.value
+            g[poi.poi_type] += poi.successes * poi.value
         return g
 
     # returns global reward based on POI values
