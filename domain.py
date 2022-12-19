@@ -1,4 +1,4 @@
-from math import pi, sqrt, atan2
+from math import pi, sqrt, atan2, dist
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -303,40 +303,41 @@ class DiscreteRoverDomain:
         :param nn_output: Assumes output from the NN a 1xN numpy array
         :return: agent, poi, or False (for no movement)
         """
+        # Goal is [x, y, POI] - if goal is not a POI, then the last element is None
+        goal = [None, None, None]
+
         # NN outputs are rooms x (agent types + poi types)
         nn_max_idx = np.argmax(nn_output)
         # Figure out room number - divide by number of POI types + agent types
         it_per_rm = self.n_poi_types + self.n_agent_types
-        rm_num = int(nn_max_idx / it_per_rm)
-        # Goal is [x, y, POI] - if goal is not a POI, then the last element is None
-        goal = [None, None, None]
-        agent_rm_door = self.rooms[agent.curr_rm].door
-        goal_rm_door = self.rooms[rm_num].door
+        goal_rm = int(nn_max_idx / it_per_rm)
+        ag_rm = agent.curr_rm
 
-        if agent_rm_door:
-            dist_to_curr_door = sqrt((agent.x - agent_rm_door[0]) ** 2 + (agent.y - agent_rm_door[1]) ** 2)
-        else:
-            dist_to_curr_door = 1
-        if goal_rm_door:
-            dist_to_goal_door = sqrt((agent.x - goal_rm_door[0]) ** 2 + (agent.y - goal_rm_door[1]) ** 2)
-        else:
-            dist_to_goal_door = 1
+        ag_xy = [agent.x, agent.y]
+        dist_curr_rm_door = 10
+        dist_goal_door = 10
+        ag_door = self.rooms[ag_rm].door
+        goal_door = self.rooms[goal_rm].door
 
-        # In the room or door of goal room - go to POI
-        # If in that room, figure out closest POI / agent of that type
-        if agent.curr_rm == rm_num or dist_to_goal_door < 0.5:
+        # Euclidean distance to the doors
+        if ag_door:
+            dist_curr_rm_door = dist(ag_xy, self.rooms[ag_rm].door)
+        if goal_door:
+            dist_goal_door = dist(ag_xy, self.rooms[goal_rm].door)
+
+        # If in the goal room or door of the goal room
+        # KEEP THE 0.1 VALUE THE SAME AS CHECK IN ROOM.IN_ROOM!!! Otherwise shit breaks.
+        if agent.curr_rm == goal_rm or dist_goal_door < 0.1:
             poi_ag_num = nn_max_idx % it_per_rm
-            goal = self.act_in_rm(agent, poi_ag_num, rm_num)
+            goal = self.act_in_rm(agent, poi_ag_num, goal_rm)
 
-        # In the hallway - go to goal door
-        # In the door of another room - go to goal door
-        # If the room number (index) == number of rooms - 1, then the agent is in the hallway (last room added)
-        elif agent.curr_rm == self.n_rooms - 1 or dist_to_curr_door < 0.1:
-            goal = self.rooms[rm_num].door + [None]
+        # If in the hall or the door of another room, go to the door of the goal room
+        elif agent.curr_rm == self.n_rooms - 1 or dist_curr_rm_door < 0.1:
+            goal = self.rooms[goal_rm].door + [None]
 
-        # In another room - go to current room door
+        # Otherwise, exit the current room
         else:
-            goal = self.rooms[agent.curr_rm].door + [None]
+            goal = self.rooms[ag_rm].door + [None]
 
         return goal
 
@@ -358,6 +359,9 @@ class DiscreteRoverDomain:
             # Only check poi/ag that are of the correct type
             if a_or_p.type != poi_ag_num:
                 continue
+            if cls == 'POI':
+                if a_or_p.observed:
+                    continue
             px, py = a_or_p.x, a_or_p.y
             dist = sqrt((ax - px) ** 2 + (ay - py) ** 2)
             if dist < cl_dist:

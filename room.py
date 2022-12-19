@@ -30,7 +30,8 @@ class Room:
         # If the agent is in the door, it's in the room.
         if self.door:
             dist_to_door = sqrt((agent.x - self.door[0]) ** 2 + (agent.y - self.door[1]) ** 2)
-            if dist_to_door < 0.05:
+            # KEEP THE 0.1 VALUE THE SAME AS CHECK IN DOMAIN.ACTION!!! Otherwise shit breaks.
+            if dist_to_door < 0.1:
                 return True
         return False
 
