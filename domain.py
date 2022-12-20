@@ -64,7 +64,8 @@ class DiscreteRoverDomain:
         n_rooms = int(len(self.p.rooms))
         n_upper = int(np.floor(n_rooms / 2))
         n_lower = n_upper
-        if n_rooms % n_upper:
+        # If there are rooms leftover
+        if n_rooms - (n_upper + n_lower):
             # If there are leftovers after splitting into two groups, add one to the lower group
             n_lower = n_upper + 1
 
@@ -389,6 +390,12 @@ class DiscreteRoverDomain:
         for poi in self.pois:
             g[poi.type] += poi.successes * poi.value
         return g
+
+    def multiD(self):
+        d = np.zeros((self.n_poi_types, self.n_agents))
+        for poi in self.pois:
+            d[poi.type] = d[poi.type] + poi.D_vec * poi.value
+        return d
 
     # returns global reward based on POI values
     def G(self):
