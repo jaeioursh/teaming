@@ -42,7 +42,7 @@ class DomainHierarchy(Domain):
             if self.vis:
                 self.view(t)
 
-        return self.high_level_G()
+        return self.G()
 
     def reselect_policies(self, top_pols):
         self.policies = []
@@ -54,20 +54,23 @@ class DomainHierarchy(Domain):
             self.policies.append(self.pareto_pols[i][idx])
 
     def global_state(self):
-        st = np.zeros(self.n_poi_types + self.n_agent_types)
+        # st = np.zeros(self.n_poi_types + self.n_agent_types)
+        st = np.zeros(self.n_poi_types)
+
         # How many of each poi type have been captured
         for poi in self.pois:
             if poi.observed:
                 st[poi.type] += 1
 
         # How many of each agent type
-        for ag in self.agents:
-            st[self.n_poi_types + ag.type] += 1
+        # for ag in self.agents:
+        #     st[self.n_poi_types + ag.type] += 1
 
         return st
 
     def global_st_size(self):
-        return self.n_poi_types + self.n_agent_types
+        # return self.n_poi_types + self.n_agent_types
+        return self.n_poi_types
 
     def high_level_G(self):
         g = self.multiG()
@@ -78,6 +81,13 @@ class DomainHierarchy(Domain):
             return 0
         else:
             return 1
+
+    def agent_room_times(self):
+        all_times = []
+        for agent in self.agents:
+            time_arr = np.array(agent.time_in_rm)
+            all_times.append(time_arr / sum(time_arr))
+        return all_times
 
 
 def closest(num, arr):

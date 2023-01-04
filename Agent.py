@@ -19,6 +19,7 @@ class Agent:
         self.policy = None
         self.state = None           # Current state
         self.rm_timers = np.zeros(len(self.p.rooms) + 1) + 100   # Keep track of how long it has been since last in each room - everything starts as 'never been'
+        self.time_in_rm = np.zeros(len(self.p.rooms) + 1)
         self.rm_in_state = np.zeros_like(self.rm_timers)    # Binary to determine whether info drops out of state (0 don't include / 1 include)
 
     def reset(self):
@@ -31,6 +32,7 @@ class Agent:
         self.y = self._y
 
         self.rm_timers = np.zeros(len(self.p.rooms) + 1) + 100  # Keep track of how long it has been since last in each room - everything starts as 'never been'
+        self.time_in_rm = np.zeros(len(self.p.rooms) + 1)
         self.rm_in_state = np.zeros_like(self.rm_timers)  # Binary to determine whether info drops out of state (0 don't include / 1 include)
 
     def step(self):
@@ -84,6 +86,7 @@ class Agent:
         self.rm_timers += 1
         # Set current room to zero
         self.rm_timers[self.curr_rm] = 0
+        self.time_in_rm[self.curr_rm] += 1
         # Set the boolean value to 0 if greater than the time threshold, otherwise 1
         self.rm_in_state = np.zeros_like(self.rm_timers)
         self.rm_in_state[self.rm_timers < self.p.time_threshold] = 1
