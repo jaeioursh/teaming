@@ -49,9 +49,9 @@ class Room:
             if poi.observed:
                 continue
             st[poi.type] += 1
-        ag_st = [0] * self.p.n_agent_types
-        # How many of each agent type are in this room
-        for ag in self.agents_in_rm:
-            ag_st[ag.type] += 1
-        st.extend(ag_st)
+        # ag_st = [0] * self.p.n_agent_types
+        # # How many of each agent type are in this room
+        # for ag in self.agents_in_rm:
+        #     ag_st[ag.type] += 1
+        # st.extend(ag_st)
         return st

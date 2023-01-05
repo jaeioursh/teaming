@@ -82,13 +82,6 @@ class DomainHierarchy(Domain):
         else:
             return 1
 
-    def agent_room_times(self):
-        all_times = []
-        for agent in self.agents:
-            time_arr = np.array(agent.time_in_rm)
-            all_times.append(time_arr / sum(time_arr))
-        return all_times
-
 
 def closest(num, arr):
     curr = arr[0][0]

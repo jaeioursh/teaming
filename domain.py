@@ -89,8 +89,10 @@ class DiscreteRoverDomain:
         upper_dims = np.ndarray.tolist(np.dstack((upper_x, upper_y)))
         lower_dims = np.ndarray.tolist(np.dstack((lower_x, lower_y)))
 
-        lower_door_y = [hall_st for _ in range(n_lower)]
-        upper_door_y = [hall_st + 1 for _ in range(n_upper)]
+        # Subtract / add 0.1 to dimensions so the doors are slightly outside the rooms
+        # This is necessary so agents don't get stuck in the room
+        lower_door_y = [hall_st + 0.1 for _ in range(n_lower)]
+        upper_door_y = [hall_st + 1 - 0.1 for _ in range(n_upper)]
 
         lower_door_dims = list(zip(lower_door_x, lower_door_y))
         upper_door_dims = list(zip(upper_door_x, upper_door_y))
@@ -204,6 +206,7 @@ class DiscreteRoverDomain:
             self.time = t
             state = self.joint_state()
             actions = self.joint_actions(state)
+            xy = [self.agents[0].x, self.agents[0].y]
             self.step(actions)
             if self.vis:
                 self.view(t)
@@ -235,8 +238,13 @@ class DiscreteRoverDomain:
             poi.viewing = []  # if this gets reset at every step, the "viewing" check will only see the last time step
 
     def update_rms(self):
+        # Reverse the order the rooms are checked in
+        # If the hallway is checked last, it will overwrite any info about an agent being in a doorway (since doorways and hallway overlap)
+        # Therefore the hallway gets checked first. Yes this is dumb.
+        rm_check_order = [i for i in range(self.n_rooms)][::-1]
         # Update which room each agent is currently in
-        for rm in self.rooms:
+        for i in rm_check_order:
+            rm = self.rooms[i]
             rm.agents_in_rm = []  # Clear room's list of agents so it can be recalculated
             for ag in self.agents:
                 if rm.in_room(ag):
@@ -282,7 +290,7 @@ class DiscreteRoverDomain:
                 rm_st.append(incl_rm * rm_np)
             else:
                 # Optimistic values - include values to encourage exploration
-                rm_st.append([0] * len(rm_np))
+                rm_st.append([-1] * len(rm_np))
         # Flattens the matrix and adds the agent's current room to the end
         st = np.reshape(rm_st, (1, -1))[0]
         full_st = np.append(st, agent.curr_rm)
@@ -295,7 +303,8 @@ class DiscreteRoverDomain:
         :return:
         state size
         """
-        return (self.n_rooms * (self.n_poi_types + self.n_agent_types)) + 1
+        # return (self.n_rooms * (self.n_poi_types + self.n_agent_types)) + 1
+        return (self.n_rooms * (self.n_poi_types)) + 1
 
     def action(self, agent, nn_output):
         """
@@ -310,7 +319,7 @@ class DiscreteRoverDomain:
         # NN outputs are rooms x (agent types + poi types)
         nn_max_idx = np.argmax(nn_output)
         # Figure out room number - divide by number of POI types + agent types
-        it_per_rm = self.n_poi_types + self.n_agent_types
+        it_per_rm = self.n_poi_types # + self.n_agent_types
         goal_rm = int(nn_max_idx / it_per_rm)
         ag_rm = agent.curr_rm
 
@@ -329,7 +338,7 @@ class DiscreteRoverDomain:
         # If in the goal room or door of the goal room
         # KEEP THE 0.1 VALUE THE SAME AS CHECK IN ROOM.IN_ROOM!!! Otherwise shit breaks.
         if agent.curr_rm == goal_rm or dist_goal_door < 0.1:
-            poi_ag_num = nn_max_idx % it_per_rm
+            poi_ag_num = (nn_max_idx) % it_per_rm   # Add one to make index line up for modulo calculation
             goal = self.act_in_rm(agent, poi_ag_num, goal_rm)
 
         # If in the hall or the door of another room, go to the door of the goal room
@@ -382,7 +391,14 @@ class DiscreteRoverDomain:
         :return:
         """
         # Subtract 1 from rooms as to not include the hallway
-        return (self.n_rooms - 1) * (self.n_poi_types + self.n_agent_types)
+        return (self.n_rooms - 1) * (self.n_poi_types)  # + self.n_agent_types)
+
+    def agent_room_times(self):
+        all_times = []
+        for agent in self.agents:
+            time_arr = np.array(agent.time_in_rm)
+            all_times.append(time_arr / sum(time_arr))
+        return all_times
 
     ################################# Reward Functions #################################
     def multiG(self):
