@@ -11,7 +11,7 @@ class DomainHierarchy(Domain):
         self.g_vals = None
         self.pareto_pols = None
         self.behaviors = None
-        self.policies = None
+        self.ag_policies = None
         self.norm_gs_bh = []
 
     def setup(self, pareto_vals, pareto_pols, behaviors):
@@ -31,12 +31,13 @@ class DomainHierarchy(Domain):
             if not t % self.reselect_ts:
                 self.reselect_policies(top_policies)
 
-            for i in range(len(self.policies)):
-                self.agents[i].policy = self.policies[i]  # sets all agent policies
+            for i in range(len(self.ag_policies)):
+                self.agents[i].policy = self.ag_policies[i]  # sets all agent policies
 
             self.time = t
             state = self.joint_state()
             actions = self.joint_actions(state)
+            # actions[0] = [self.pois[0].x, self.pois[0].y, self.pois[0]]
             self.step(actions)
             if self.vis:
                 self.view(t)
@@ -44,31 +45,44 @@ class DomainHierarchy(Domain):
         return self.G()
 
     def reselect_policies(self, top_pols):
-        self.policies = []
-        st = self.global_state()
+        self.ag_policies = []
+        st = self.ag_state()
+
         for i, pol in enumerate(top_pols):
             # TODO: Double check that this is correct
-            nn_out = pol(st).detach().numpy()
+
+            nn_out = pol(st[i]).detach().numpy()
             idx = closest(nn_out, self.norm_gs_bh[i])
-            self.policies.append(self.pareto_pols[i][idx])
+            self.ag_policies.append(self.pareto_pols[i][idx])
+
+    def ag_state(self):
+        gl_st = self.global_state()
+        joint_st = []
+        for ag in self.agents:
+            ag_st = np.append(gl_st, ag.curr_rm)
+            joint_st.append(ag_st)
+        return joint_st
 
     def global_state(self):
-        st = np.zeros(self.n_poi_types + self.n_agent_types)
+        poi_st = np.zeros(self.n_poi_types)
         # st = np.zeros(self.n_poi_types)
 
         # How many of each poi type have been captured
         for poi in self.pois:
             if poi.observed:
-                st[poi.type] += 1
+                poi_st[poi.type] += 1
 
+        ag_st = np.zeros((self.n_agent_types, self.n_rooms))
         # How many of each agent type
         for ag in self.agents:
-            st[self.n_poi_types + ag.type] += 1
+            ag_st[ag.type][ag.curr_rm] += 1
+        ag_st1 = ag_st.flatten()
+        new_st = np.concatenate((poi_st, ag_st1))
 
-        return st
+        return new_st
 
     def global_st_size(self):
-        return self.n_poi_types + self.n_agent_types
+        return self.n_poi_types + (self.n_agent_types * self.n_rooms) + 1
         # return self.n_poi_types
 
     def top_out_size(self):
@@ -90,7 +104,9 @@ class DomainHierarchy(Domain):
 
 def closest(nn_out, arr):
     # idx = (np.abs(arr - nn_out)).sum(axis=1).argmin()
-    subtract_them = np.abs(arr - nn_out)
+    out_data = [rw[:2] for rw in arr]
+
+    subtract_them = np.abs(out_data - nn_out[:2])
     sum_them = subtract_them.sum(axis=1)
     find_min = sum_them.argmin()
     return find_min
