@@ -432,6 +432,16 @@ class DiscreteRoverDomain:
             d = d + poi.Dpp_vec * poi.value
         return d
 
+    def high_level_G(self):
+        g = self.multiG()
+        possible_G = np.sum(self.p.rooms, axis=0)
+        if g[0] < int(possible_G[0]):
+            return 0
+        elif g[1] > 0:
+            return 0
+        else:
+            return 1
+
     def view(self, t):
         plt.ion()
         plt.clf()

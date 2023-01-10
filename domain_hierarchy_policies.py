@@ -42,7 +42,7 @@ class DomainHierarchy(Domain):
             if self.vis:
                 self.view(t)
 
-        return self.G()
+        return self.high_level_G()
 
     def reselect_policies(self, top_pols):
         self.ag_policies = []
@@ -73,7 +73,7 @@ class DomainHierarchy(Domain):
                 poi_st[poi.type] += 1
 
         ag_st = np.zeros((self.n_agent_types, self.n_rooms))
-        # How many of each agent type
+        # How many of each agent type in each room
         for ag in self.agents:
             ag_st[ag.type][ag.curr_rm] += 1
         ag_st1 = ag_st.flatten()
@@ -91,22 +91,28 @@ class DomainHierarchy(Domain):
         # Number of rooms is the number of behaviors
         return self.n_poi_types + self.n_rooms
 
-    def high_level_G(self):
-        g = self.multiG()
-        possible_G = np.sum(self.p.rooms, axis=0)
-        if g[0] < int(possible_G[0]/2):
-            return 0
-        elif g[1] > 0:
-            return 0
-        else:
-            return 1
 
-
-def closest(nn_out, arr):
-    # idx = (np.abs(arr - nn_out)).sum(axis=1).argmin()
+def sub_pop(nn_out, arr):
+    # The first two items represent the pareto rewards
+    # Choose the behaviors in that population and return their indices
     out_data = [rw[:2] for rw in arr]
 
     subtract_them = np.abs(out_data - nn_out[:2])
     sum_them = subtract_them.sum(axis=1)
+    find_min = np.amin(sum_them)
+    # Have to pull index 0 because np.where returns a tuple for matrix reasons
+    bh_pop = np.where(abs(find_min - sum_them) < 0.01)[0]
+    return bh_pop
+
+
+def closest(nn_out, arr):
+    # idx = (np.abs(arr - nn_out)).sum(axis=1).argmin()
+    # Indices of the behaviors that are within the chosen pareto point
+    bh_idxs = sub_pop(nn_out, arr)
+    bh_arr = arr[bh_idxs]
+    # Find the closest to the chosen behavior
+    subtract_them = np.abs(bh_arr[:, 2:] - nn_out[2:])
+    sum_them = subtract_them.sum(axis=1)
     find_min = sum_them.argmin()
-    return find_min
+    # Return the original index of the behavior
+    return bh_idxs[find_min]
