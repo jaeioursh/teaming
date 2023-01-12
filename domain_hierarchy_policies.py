@@ -21,10 +21,9 @@ class DomainHierarchy(Domain):
         self.g_vals = pareto_vals
         self.pareto_pols = pareto_pols
         self.behaviors = behaviors
-        for i, gs in enumerate(self.g_vals):
-            norm_gs = gs / gs.max(axis=0)
-            g_and_bh = np.concatenate((norm_gs, behaviors[i]), axis=1)
-            self.norm_gs_bh.append(g_and_bh)
+        norm_gs = self.g_vals / self.g_vals.max(axis=0)
+        g_and_bh = np.concatenate((norm_gs, behaviors), axis=1)
+        self.norm_gs_bh.append(g_and_bh)
 
     def run_sim(self, top_policies):
         for t in range(self.time_steps):
@@ -39,10 +38,11 @@ class DomainHierarchy(Domain):
             actions = self.joint_actions(state)
             # actions[0] = [self.pois[0].x, self.pois[0].y, self.pois[0]]
             self.step(actions)
+            x = [[ag.x, ag.y] for ag in self.agents]
             if self.vis:
                 self.view(t)
 
-        return self.high_level_G()
+        return self.G()
 
     def reselect_policies(self, top_pols):
         self.ag_policies = []
@@ -52,8 +52,9 @@ class DomainHierarchy(Domain):
             # TODO: Double check that this is correct
 
             nn_out = pol(st[i]).detach().numpy()
-            idx = closest(nn_out, self.norm_gs_bh[i])
-            self.ag_policies.append(self.pareto_pols[i][idx])
+            # idx = closest(nn_out, self.norm_gs_bh[i])
+            idx = options(nn_out, self.norm_gs_bh)
+            self.ag_policies.append(self.pareto_pols[idx])
 
     def ag_state(self):
         gl_st = self.global_state()
@@ -89,20 +90,30 @@ class DomainHierarchy(Domain):
         # Output size for top-level policy
         # Number of POI types is currently the number of objectives we're balancing
         # Number of rooms is the number of behaviors
-        return self.n_poi_types + self.n_rooms
+        # return self.n_poi_types + self.n_rooms
+        return 2
 
 
 def sub_pop(nn_out, arr):
     # The first two items represent the pareto rewards
     # Choose the behaviors in that population and return their indices
-    out_data = [rw[:2] for rw in arr]
-
-    subtract_them = np.abs(out_data - nn_out[:2])
-    sum_them = subtract_them.sum(axis=1)
-    find_min = np.amin(sum_them)
+    out_data = arr[0][:, :2]
+    unique_options = np.unique(out_data, axis=0)
+    choice = int(nn_out[0] * len(unique_options))
+    x = unique_options[choice]
+    # subtract_them = np.abs(out_data - nn_out[:1])
+    # sum_them = subtract_them.sum(axis=1)
+    # find_min = np.amin(sum_them)
     # Have to pull index 0 because np.where returns a tuple for matrix reasons
-    bh_pop = np.where(abs(find_min - sum_them) < 0.01)[0]
+    bh_pop = np.where((out_data == unique_options[choice]).all(axis=1))[0]
     return bh_pop
+
+
+def options(nn_out, arr):
+    bh_idxs = sub_pop(nn_out, arr)
+    choice = int(nn_out[-1] * len(bh_idxs))
+
+    return bh_idxs[choice]
 
 
 def closest(nn_out, arr):
