@@ -99,7 +99,7 @@ def sub_pop(nn_out, arr):
     # Choose the behaviors in that population and return their indices
     out_data = arr[0][:, :2]
     unique_options = np.unique(out_data, axis=0)
-    choice = int(nn_out[0] * len(unique_options))
+    choice = int(np.floor(nn_out[0] * (len(unique_options) - 1)))
     x = unique_options[choice]
     # subtract_them = np.abs(out_data - nn_out[:1])
     # sum_them = subtract_them.sum(axis=1)
@@ -111,7 +111,7 @@ def sub_pop(nn_out, arr):
 
 def options(nn_out, arr):
     bh_idxs = sub_pop(nn_out, arr)
-    choice = int(nn_out[-1] * len(bh_idxs))
+    choice = int(np.round(nn_out[-1] * (len(bh_idxs) - 1)))
 
     return bh_idxs[choice]
 

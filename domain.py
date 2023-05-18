@@ -434,9 +434,10 @@ class DiscreteRoverDomain:
 
     def high_level_G(self):
         g = self.multiG()
-        possible_G = np.sum(self.p.rooms, axis=0)
-        if g[0] > 5 and g[1] > 5:
+        # possible_G = np.sum(self.p.rooms, axis=0)
+        if g[0] > 50:  # and g[1] > 25:  # and g[1] > 35:
             return 1
+
         else:
             return 0
         # if g[0] < int(possible_G[0]/3):
