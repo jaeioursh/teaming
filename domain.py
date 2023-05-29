@@ -474,7 +474,7 @@ class DiscreteRoverDomain:
         color = ["b", "y", "c"]
         colors = [color[int(p)] for p in agent[2]]
         plt.scatter(agent[0], agent[1], c=colors, marker="o")
-        pth = path.join(getcwd(), 'rollouts', f't{self.p.trial_num:02d}_{self.p.rew_str}_{t}.png')
+        pth = path.join(getcwd(), 'rollouts', f't{self.p.param_idx:02d}_{self.p.rew_str}_{t}.png')
 
         plt.savefig(pth)
 
@@ -503,7 +503,7 @@ class DiscreteRoverDomain:
 
         # plt.show()
         # sleep(0.1)
-        pth = path.join(getcwd(), 'rollouts', self.p.fname_prepend + 't{:02d}_{}.png'.format(self.p.trial_num, t))
+        pth = path.join(getcwd(), 'rollouts', self.p.fname_prepend + 't{:02d}_{}.png'.format(self.p.param_idx, t))
 
         plt.savefig(pth)
 
